@@ -77,6 +77,8 @@ func _start_attack() -> void:
 
 func _on_died() -> void:
 	is_dead = true
+	# The body stays as an anchor but no longer blocks enemies.
+	collision_layer = 0
 	if melee:
 		melee.cancel()
 	if is_aiming:

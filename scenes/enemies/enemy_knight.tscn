@@ -8,7 +8,8 @@
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/ui/world_health_bar.gd" id="7_bar"]
 [ext_resource type="Shader" path="res://shaders/billboard_bar.gdshader" id="8_bar_shader"]
-[ext_resource type="PackedScene" path="res://assets/characters/knight/KnightCharacter.fbx" id="9_knight"]
+[ext_resource type="PackedScene" path="res://scenes/characters/knight_rig.tscn" id="9_knight"]
+[ext_resource type="Script" path="res://scripts/characters/ragdoll_component.gd" id="20_ragdoll"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="10_club"]
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
 
@@ -63,18 +64,15 @@ shape = SubResource("Shape_body")
 [node name="Visual" type="Node3D" parent="."]
 
 [node name="Model" parent="Visual" instance=ExtResource("9_knight")]
-transform = Transform3D(-0.32, 0, 0, 0, 0.32, 0, 0, 0, -0.32, 0, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 [node name="Knight" parent="Visual/Model/HumanArmature/Skeleton3D" index="0"]
 surface_material_override/0 = SubResource("Mat_armor")
 surface_material_override/1 = SubResource("Mat_skin")
 surface_material_override/2 = SubResource("Mat_boots")
 
-[node name="RightHand" type="BoneAttachment3D" parent="Visual/Model/HumanArmature/Skeleton3D"]
-bone_name = "Palm.R"
-
 [node name="Club" parent="Visual/Model/HumanArmature/Skeleton3D/RightHand" instance=ExtResource("10_club")]
-transform = Transform3D(0, -0.01, 0, 0.01, 0, 0, 0, 0, 0.01, 0, 0.003, 0)
+transform = Transform3D(0, -0.32, 0, 0.32, 0, 0, 0, 0, 0.32, 0, 0.096, 0)
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
 path_desired_distance = 0.5
@@ -127,6 +125,7 @@ script = ExtResource("6_anim")
 body = NodePath("..")
 health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
+death_animation = &""
 run_reference_speed = 4.5
 
 [node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "telegraph")]
@@ -136,3 +135,11 @@ animator = NodePath("../Animator")
 telegraph = NodePath("../Telegraph")
 animation = &"HumanArmature|swordAttackJump"
 animation_strike_time = 0.5
+
+[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body", "limb_follow")]
+script = ExtResource("20_ragdoll")
+health = NodePath("../HealthComponent")
+simulator = NodePath("../Visual/Model/HumanArmature/Skeleton3D/PhysicalBoneSimulator3D")
+animation_player = NodePath("../Visual/Model/AnimationPlayer")
+body = NodePath("..")
+limb_follow = NodePath("../Visual/Model/HumanArmature/Skeleton3D/RagdollLimbFollow")

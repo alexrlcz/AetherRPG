@@ -82,5 +82,7 @@ func _on_animation_finished(anim_name: StringName) -> void:
 func _on_died() -> void:
 	_dead = true
 	_action = &""
-	animation_player.speed_scale = 1.0
-	animation_player.play(death_animation, blend_time)
+	# Leave `death_animation` empty when a RagdollComponent handles death.
+	if death_animation != &"":
+		animation_player.speed_scale = 1.0
+		animation_player.play(death_animation, blend_time)

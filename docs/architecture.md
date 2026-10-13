@@ -29,6 +29,7 @@
 | 4 | player_hurtbox | Areas that receive damage on the player |
 | 5 | enemy_hurtbox  | Areas that receive damage on enemies |
 | 6 | interactable   | NPCs, loot, objects |
+| 7 | ragdoll        | Ragdoll bones; collide with the world only (corpses never block characters) |
 
 ## Combat components
 
@@ -59,21 +60,45 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - Player attack: 20 damage, 0.3 s wind-up, `Run_swordAttack` animation,
   `AttackHitbox` masks `enemy_hurtbox`.
 
-## Player visuals and animation
+## Character visuals and animation
 
 - Model: `assets/characters/knight/KnightCharacter.fbx` (rigged, 12 animations,
-  flat-colour materials). Instanced at `Player/Visual/Model`, scaled 0.32
-  (~1.8 m tall) and rotated 180° because the FBX faces +Z while gameplay
-  forward is -Z.
-- The sword is attached to bone `Palm.R` through a `BoneAttachment3D`
-  (`RightHand`). Its local scale is 0.01 because the bone space carries the
-  FBX's ×100 armature scale.
+  flat-colour materials). Its post-import script
+  `tools/import/knight_post_import.gd` bakes the FBX's ×100 armature scale and
+  the 0.32 character scale into the skeleton, mesh and animation keys, so every
+  node is at scale 1 and the knight is ~1.8 m tall (required for physics).
+- `scenes/characters/knight_rig.tscn` = the FBX + ragdoll + `RightHand`
+  attachment. It is **generated** by `tools/build_knight_rig.gd` (bone table
+  at the top of that file); re-run it instead of hand-editing:
+  `godot --headless --path . -s res://tools/build_knight_rig.gd`.
+- Player and enemy instance the rig at `Visual/Model`, rotated 180° because
+  the FBX faces +Z while gameplay forward is -Z. Weapons are children of
+  `RightHand` (bone `Palm.R`) with scale 0.32 because the weapon FBXs are
+  still in their original units.
 - `CharacterAnimator` (`scripts/characters/`, node `Animator`) is shared by the
   player and enemies. It observes the body's velocity and its HealthComponent:
   idle / run (scaled by speed, reversed when moving against the facing
-  direction) / death. Gameplay calls `play_action(anim, speed)` for one-shots
-  such as attacks. Idle and run are set to loop at runtime because the FBX
-  import does not.
+  direction). Gameplay calls `play_action(anim, speed)` for one-shots such as
+  attacks. Idle and run are set to loop at runtime because the FBX import does
+  not. `death_animation` is empty because the ragdoll handles death.
+
+## Ragdoll
+
+- 12 `PhysicalBone3D`s (pelvis, abdomen, chest, head, upper/lower arms and
+  legs) under `Skeleton3D/PhysicalBoneSimulator3D`, capsule shapes, cone joints
+  with swing/twist limits, layer 7 `ragdoll`, mask `world`.
+- The feet are IK bones parented to the root, not to the shins.
+  `RagdollLimbFollow` (a `SkeletonModifier3D` after the simulator, active only
+  while ragdolling) glues `Foot.L/R` to `LowerLeg.L/R_end`.
+- `RagdollComponent` (node `Ragdoll`) listens to `HealthComponent.died`: it
+  freezes the AnimationPlayer, starts the simulation and gives every bone the
+  body's velocity plus a knockback away from the last damage source
+  (`knockback_speed` 3 m/s, `knockback_lift` 1.5 m/s). Corpses stay forever.
+- The CharacterBody3D stays where the character died (collision layer 0);
+  only the visuals move.
+- Testing note: `Skeleton3D` restores pre-modifier poses after each update, so
+  scripts must observe ragdoll bone positions through `BoneAttachment3D`
+  nodes, not `get_bone_global_pose()`.
 - Unused but imported for a future equipment system: `assets/equipment/`
   (ShortSword, Katana, Helmet1-3, ShoulderPads).
 
@@ -106,20 +131,24 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - The baked mesh sits 0.5 m above the floor, so agents use
   `path_height_offset = 0.5`; without it they never advance past their first
   waypoint.
+
 ## Layout
 
 ```
 scenes/main/main.tscn                Entry scene: arena + player + enemies + camera rig + HUD
 scenes/world/test_arena.tscn         Prototype arena (ground, walls, obstacles, lighting, hazards)
 scenes/world/hazards/spike_trap.tscn Test hazard: 10 damage/s to the player
-scenes/player/player.tscn            CharacterBody3D, knight model + sword, health, hurtbox, animator
-assets/characters/knight/            Player character FBX
+scenes/player/player.tscn            CharacterBody3D, knight rig + sword, health, hurtbox, animator, ragdoll
+scenes/characters/knight_rig.tscn    GENERATED: knight FBX + ragdoll + hand attachment
+scripts/characters/                  character_animator, ragdoll_component, ragdoll_limb_follow
+tools/build_knight_rig.gd            Generates knight_rig.tscn
+tools/import/knight_post_import.gd   Bakes the knight FBX to real-world scale on import
+assets/characters/knight/            Knight character FBX
 assets/equipment/                    Weapon and armour FBX meshes
 scenes/camera/iso_camera_rig.tscn
 scenes/ui/hud.tscn                   Player health bar, "Defeated" message
 scripts/components/                  health, hitbox, hurtbox, melee attack components
 scripts/player/player_controller.gd
-scripts/characters/character_animator.gd
 scenes/enemies/enemy_knight.tscn     Melee enemy (recoloured knight + club)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
 resources/enemies/                   EnemyStats .tres files
