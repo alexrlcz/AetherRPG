@@ -3,25 +3,13 @@
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_ctrl"]
 [ext_resource type="Script" path="res://scripts/components/health_component.gd" id="2_health"]
 [ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="3_hurtbox"]
+[ext_resource type="PackedScene" path="res://assets/characters/knight/KnightCharacter.fbx" id="4_knight"]
+[ext_resource type="PackedScene" path="res://assets/equipment/Sword.fbx" id="5_sword"]
+[ext_resource type="Script" path="res://scripts/player/player_animator.gd" id="6_anim"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
 height = 1.8
-
-[sub_resource type="StandardMaterial3D" id="Mat_body"]
-albedo_color = Color(0.25, 0.45, 0.85, 1)
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
-material = SubResource("Mat_body")
-radius = 0.4
-height = 1.8
-
-[sub_resource type="StandardMaterial3D" id="Mat_marker"]
-albedo_color = Color(0.95, 0.85, 0.3, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_marker"]
-material = SubResource("Mat_marker")
-size = Vector3(0.25, 0.15, 0.35)
 
 [node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("health")]
 collision_layer = 2
@@ -35,13 +23,14 @@ shape = SubResource("CapsuleShape3D_body")
 
 [node name="Visual" type="Node3D" parent="."]
 
-[node name="Body" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-mesh = SubResource("CapsuleMesh_body")
+[node name="Model" parent="Visual" instance=ExtResource("4_knight")]
+transform = Transform3D(-0.32, 0, 0, 0, 0.32, 0, 0, 0, -0.32, 0, 0, 0)
 
-[node name="FacingMarker" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, -0.45)
-mesh = SubResource("BoxMesh_marker")
+[node name="RightHand" type="BoneAttachment3D" parent="Visual/Model/HumanArmature/Skeleton3D"]
+bone_name = "Palm.R"
+
+[node name="Sword" parent="Visual/Model/HumanArmature/Skeleton3D/RightHand" instance=ExtResource("5_sword")]
+transform = Transform3D(0, -0.01, 0, 0.01, 0, 0, 0, 0, 0.01, 0, 0.003, 0)
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("2_health")
@@ -57,3 +46,8 @@ health = NodePath("../HealthComponent")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
+
+[node name="Animator" type="Node" parent="." node_paths=PackedStringArray("controller", "animation_player")]
+script = ExtResource("6_anim")
+controller = NodePath("..")
+animation_player = NodePath("../Visual/Model/AnimationPlayer")

@@ -51,17 +51,36 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   `enemy_hurtbox`, enemy attacks and hazards mask `player_hurtbox`.
 - UI (`HUD`) only listens to `HealthComponent` signals.
 
+## Player visuals and animation
+
+- Model: `assets/characters/knight/KnightCharacter.fbx` (rigged, 12 animations,
+  flat-colour materials). Instanced at `Player/Visual/Model`, scaled 0.32
+  (~1.8 m tall) and rotated 180° because the FBX faces +Z while gameplay
+  forward is -Z.
+- The sword is attached to bone `Palm.R` through a `BoneAttachment3D`
+  (`RightHand`). Its local scale is 0.01 because the bone space carries the
+  FBX's ×100 armature scale.
+- `PlayerAnimator` (node `Player/Animator`) observes the controller and drives
+  the `AnimationPlayer`: idle / run (scaled by speed, reversed when moving
+  against the facing direction) / death. It marks idle and run as looping at
+  runtime because the FBX import does not.
+- Unused but imported for a future equipment system: `assets/equipment/`
+  (ShortSword, Katana, Club, Helmet1-3, ShoulderPads).
+
 ## Layout
 
 ```
 scenes/main/main.tscn                Entry scene: arena + player + camera rig + HUD
 scenes/world/test_arena.tscn         Prototype arena (ground, walls, obstacles, lighting, hazards)
 scenes/world/hazards/spike_trap.tscn Test hazard: 10 damage/s to the player
-scenes/player/player.tscn            CharacterBody3D, placeholder capsule, health, hurtbox
+scenes/player/player.tscn            CharacterBody3D, knight model + sword, health, hurtbox, animator
+assets/characters/knight/            Player character FBX
+assets/equipment/                    Weapon and armour FBX meshes
 scenes/camera/iso_camera_rig.tscn
 scenes/ui/hud.tscn                   Player health bar, "Defeated" message
 scripts/components/                  health, hitbox, hurtbox components
 scripts/player/player_controller.gd
+scripts/player/player_animator.gd
 scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```
