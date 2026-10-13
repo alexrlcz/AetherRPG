@@ -16,6 +16,7 @@
 |----------------|--------------------|-----------|
 | `move_*`       | WASD / arrow keys  | Screen-relative movement; character faces movement direction. |
 | `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
+| `attack`       | Left mouse (hold to repeat) | Turns toward the cursor and swings; facing locked and movement at 40% until the swing recovers. |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
 
 ## Physics layers
@@ -50,6 +51,13 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - Teams are decided purely by physics layers: player attacks mask
   `enemy_hurtbox`, enemy attacks and hazards mask `player_hurtbox`.
 - UI (`HUD`) only listens to `HealthComponent` signals.
+- `MeleeAttackComponent` runs one attack for anyone: wind-up (optional
+  ground telegraph grows) -> strike (hitbox live) -> recovery, plus the attack
+  animation, sped up so its impact frame (`animation_strike_time`) lands at the
+  end of the wind-up. Signals: `started`, `struck`, `finished`. The owner decides
+  when to `start()` and what to do with facing/movement while `is_busy()`.
+- Player attack: 20 damage, 0.3 s wind-up, `Run_swordAttack` animation,
+  `AttackHitbox` masks `enemy_hurtbox`.
 
 ## Player visuals and animation
 
@@ -77,10 +85,10 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   (within `detection_radius`) -> `ATTACK` (within `attack_range`) and back;
   gives up beyond `lose_interest_radius` or when the target dies. `DEAD`
   disables collision and the hurtbox.
-- Attack = wind-up (ground telegraph grows, facing locked so the player can
-  sidestep) -> strike (`AttackHitbox` live for `attack_strike_duration`) ->
-  recovery. The attack animation's speed is set so its impact frame
-  (`attack_animation_strike_time`) lines up with the end of the wind-up.
+- Attacks go through the enemy's `MeleeAttack` node (`MeleeAttackComponent`),
+  configured from `stats` at ready. Facing locks when the wind-up starts so
+  the player can sidestep.
+- Taking damage while idle switches the enemy to `CHASE` (hit aggro).
 - Target = first node in group `player`; aliveness via its `is_dead` property.
 - `enemy_knight.tscn`: the knight model recoloured through surface material
   overrides (armour/skin/boots), wielding the Club. Stats:
@@ -109,7 +117,7 @@ assets/characters/knight/            Player character FBX
 assets/equipment/                    Weapon and armour FBX meshes
 scenes/camera/iso_camera_rig.tscn
 scenes/ui/hud.tscn                   Player health bar, "Defeated" message
-scripts/components/                  health, hitbox, hurtbox components
+scripts/components/                  health, hitbox, hurtbox, melee attack components
 scripts/player/player_controller.gd
 scripts/characters/character_animator.gd
 scenes/enemies/enemy_knight.tscn     Melee enemy (recoloured knight + club)
@@ -122,5 +130,4 @@ scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```
 
-Planned (not yet implemented): player attack, floating combat text, hit flash,
-restart after death.
+Planned (not yet implemented): floating combat text, hit flash, restart after death.

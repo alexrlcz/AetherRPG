@@ -6,27 +6,15 @@ extends CharacterBody3D
 ## NavigationAgent3D on the baked navigation mesh. Numbers come from `stats`.
 
 signal state_changed(new_state: State)
-## Emitted when the wind-up (telegraph) begins.
-signal attack_started
-## Emitted when the hitbox becomes live.
-signal attack_struck
 
 enum State { IDLE, CHASE, ATTACK, DEAD }
-enum AttackPhase { WINDUP, STRIKE, RECOVERY }
 
 @export var stats: EnemyStats
 @export var health: HealthComponent
 @export var nav_agent: NavigationAgent3D
-@export var attack_hitbox: HitboxComponent
 @export var hurtbox: HurtboxComponent
-## Ground marker shown during wind-up; scaled along Z from 0 to 1.
-@export var telegraph: Node3D
-@export var animator: CharacterAnimator
-
-@export_group("Attack animation")
-@export var attack_animation: StringName = &"HumanArmature|swordAttackJump"
-## Seconds into `attack_animation` where the blow visually lands.
-@export var attack_animation_strike_time: float = 0.5
+## Runs the telegraphed attack; its timing and damage are set from `stats`.
+@export var melee: MeleeAttackComponent
 
 @export_group("Navigation")
 ## How often the chase path is recomputed.
@@ -38,8 +26,6 @@ var state: State = State.IDLE
 var target: Node3D
 var facing_direction: Vector3 = Vector3.FORWARD
 
-var _attack_phase: AttackPhase = AttackPhase.WINDUP
-var _phase_time: float = 0.0
 var _repath_timer: float = 0.0
 var _home: Vector3
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -48,9 +34,11 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 func _ready() -> void:
 	health.max_health = stats.max_health
 	health.died.connect(_on_died)
-	attack_hitbox.damage = stats.attack_damage
-	attack_hitbox.active = false
-	telegraph.hide()
+	health.damaged.connect(_on_damaged)
+	melee.damage = stats.attack_damage
+	melee.windup = stats.attack_windup
+	melee.strike_duration = stats.attack_strike_duration
+	melee.recovery = stats.attack_recovery
 	_home = global_position
 	facing_direction = -global_basis.z
 
@@ -66,7 +54,7 @@ func _physics_process(delta: float) -> void:
 		State.CHASE:
 			move_dir = _process_chase(delta)
 		State.ATTACK:
-			_process_attack(delta)
+			_process_attack()
 
 	_apply_movement(move_dir, delta)
 	_apply_rotation(delta)
@@ -97,40 +85,18 @@ func _process_chase(delta: float) -> Vector3:
 
 
 func _start_attack() -> void:
-	_set_state(State.ATTACK)
-	_attack_phase = AttackPhase.WINDUP
-	_phase_time = 0.0
 	# Lock facing at the start so the player can sidestep the blow.
 	var to_target := _flat(target.global_position - global_position)
 	if to_target.length_squared() > 0.0001:
 		facing_direction = to_target.normalized()
 		rotation.y = _yaw_for(facing_direction)
-	telegraph.scale = Vector3(1.0, 1.0, 0.01)
-	telegraph.show()
-	animator.play_action(attack_animation, attack_animation_strike_time / stats.attack_windup)
-	attack_started.emit()
+	if melee.start():
+		_set_state(State.ATTACK)
 
 
-func _process_attack(delta: float) -> void:
-	_phase_time += delta
-	match _attack_phase:
-		AttackPhase.WINDUP:
-			var progress := clampf(_phase_time / stats.attack_windup, 0.01, 1.0)
-			telegraph.scale = Vector3(1.0, 1.0, progress)
-			if _phase_time >= stats.attack_windup:
-				_attack_phase = AttackPhase.STRIKE
-				_phase_time = 0.0
-				telegraph.hide()
-				attack_hitbox.active = true
-				attack_struck.emit()
-		AttackPhase.STRIKE:
-			if _phase_time >= stats.attack_strike_duration:
-				_attack_phase = AttackPhase.RECOVERY
-				_phase_time = 0.0
-				attack_hitbox.active = false
-		AttackPhase.RECOVERY:
-			if _phase_time >= stats.attack_recovery:
-				_set_state(State.CHASE if _target_alive() else State.IDLE)
+func _process_attack() -> void:
+	if not melee.is_busy():
+		_set_state(State.CHASE if _target_alive() else State.IDLE)
 
 
 func _navigate_to(point: Vector3) -> Vector3:
@@ -177,12 +143,17 @@ func _set_state(new_state: State) -> void:
 
 func _on_died() -> void:
 	_set_state(State.DEAD)
-	attack_hitbox.active = false
-	telegraph.hide()
+	melee.cancel()
 	velocity = Vector3.ZERO
 	# Corpse: no longer blocks movement or receives hits.
 	collision_layer = 0
 	hurtbox.set_deferred("monitorable", false)
+
+
+func _on_damaged(_amount: int, _source: Node) -> void:
+	# Getting hit reveals the attacker, even outside detection range.
+	if state == State.IDLE and _target_alive():
+		_set_state(State.CHASE)
 
 
 func _target_alive() -> bool:

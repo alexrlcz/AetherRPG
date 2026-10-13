@@ -1,11 +1,13 @@
 class_name PlayerController
 extends CharacterBody3D
-## Player movement: WASD locomotion with optional mouse aiming.
+## Player movement and input: WASD locomotion, mouse aiming, melee attack.
 ##
 ## WASD is always screen-relative (W = up the screen).
 ## - Not aiming: the character turns to face its movement direction.
 ## - Holding "aim" (right mouse): the character keeps facing the mouse cursor
 ##   while moving, so it can walk backwards or strafe.
+## - "attack" (left mouse, hold to repeat): turns toward the cursor and swings.
+##   Facing is locked and movement slowed until the swing recovers.
 
 signal aim_started
 signal aim_stopped
@@ -17,6 +19,9 @@ signal aim_stopped
 @export var turn_speed: float = 14.0
 ## When this reaches zero, player input is disabled.
 @export var health: HealthComponent
+@export var melee: MeleeAttackComponent
+## Movement speed multiplier while an attack is in progress.
+@export var attack_move_multiplier: float = 0.4
 
 var is_aiming: bool = false
 var is_dead: bool = false
@@ -39,10 +44,18 @@ func _physics_process(delta: float) -> void:
 
 	_update_aim_state()
 
+	if melee and Input.is_action_pressed("attack") and not melee.is_busy():
+		_start_attack()
+	var attacking := melee != null and melee.is_busy()
+
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var move_dir := _camera_relative_direction(input)
+	if attacking:
+		move_dir *= attack_move_multiplier
 
-	if is_aiming:
+	if attacking:
+		pass  # Facing stays locked for the whole swing.
+	elif is_aiming:
 		var aim_dir := get_aim_direction_at(get_viewport().get_mouse_position())
 		if aim_dir != Vector3.ZERO:
 			facing_direction = aim_dir
@@ -54,8 +67,18 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+func _start_attack() -> void:
+	var aim_dir := get_aim_direction_at(get_viewport().get_mouse_position())
+	if aim_dir != Vector3.ZERO:
+		facing_direction = aim_dir
+		rotation.y = atan2(-aim_dir.x, -aim_dir.z)
+	melee.start()
+
+
 func _on_died() -> void:
 	is_dead = true
+	if melee:
+		melee.cancel()
 	if is_aiming:
 		is_aiming = false
 		aim_stopped.emit()

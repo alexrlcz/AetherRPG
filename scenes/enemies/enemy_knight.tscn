@@ -10,6 +10,7 @@
 [ext_resource type="Shader" path="res://shaders/billboard_bar.gdshader" id="8_bar_shader"]
 [ext_resource type="PackedScene" path="res://assets/characters/knight/KnightCharacter.fbx" id="9_knight"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="10_club"]
+[ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.4
@@ -45,17 +46,15 @@ shader = ExtResource("8_bar_shader")
 material = SubResource("Mat_bar")
 size = Vector2(1.0, 0.13)
 
-[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "attack_hitbox", "hurtbox", "telegraph", "animator") groups=["enemies"]]
+[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee") groups=["enemies"]]
 collision_layer = 4
 collision_mask = 3
 script = ExtResource("1_ctrl")
 stats = ExtResource("2_stats")
 health = NodePath("HealthComponent")
 nav_agent = NodePath("NavigationAgent3D")
-attack_hitbox = NodePath("AttackHitbox")
 hurtbox = NodePath("Hurtbox")
-telegraph = NodePath("Telegraph")
-animator = NodePath("Animator")
+melee = NodePath("MeleeAttack")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -129,3 +128,11 @@ body = NodePath("..")
 health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 run_reference_speed = 4.5
+
+[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "telegraph")]
+script = ExtResource("11_melee")
+hitbox = NodePath("../AttackHitbox")
+animator = NodePath("../Animator")
+telegraph = NodePath("../Telegraph")
+animation = &"HumanArmature|swordAttackJump"
+animation_strike_time = 0.5
