@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/test_arena.tscn" id="1_arena"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/camera/iso_camera_rig.tscn" id="3_camera"]
+
+[node name="Main" type="Node3D"]
+
+[node name="TestArena" parent="." instance=ExtResource("1_arena")]
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="IsoCameraRig" parent="." instance=ExtResource("3_camera")]
+target_path = NodePath("../Player")
