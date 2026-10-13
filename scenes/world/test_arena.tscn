@@ -1,5 +1,7 @@
 [gd_scene format=3]
 
+[ext_resource type="PackedScene" path="res://scenes/world/hazards/spike_trap.tscn" id="1_trap"]
+
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.38, 0.55, 0.78, 1)
 sky_horizon_color = Color(0.72, 0.78, 0.82, 1)
@@ -182,3 +184,8 @@ mesh = SubResource("Mesh_pillar")
 
 [node name="Collision" type="CollisionShape3D" parent="Obstacles/Pillar3"]
 shape = SubResource("Shape_pillar")
+
+[node name="Hazards" type="Node3D" parent="."]
+
+[node name="SpikeTrap" parent="Hazards" instance=ExtResource("1_trap")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 2)

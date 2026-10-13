@@ -15,15 +15,28 @@ signal aim_stopped
 @export var deceleration: float = 50.0
 ## How quickly the character turns toward its facing direction.
 @export var turn_speed: float = 14.0
+## When this reaches zero, player input is disabled.
+@export var health: HealthComponent
 
 var is_aiming: bool = false
+var is_dead: bool = false
 ## Horizontal unit vector the character is turning toward.
 var facing_direction: Vector3 = Vector3.FORWARD
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
+func _ready() -> void:
+	if health:
+		health.died.connect(_on_died)
+
+
 func _physics_process(delta: float) -> void:
+	if is_dead:
+		_apply_movement(Vector3.ZERO, delta)
+		move_and_slide()
+		return
+
 	_update_aim_state()
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -39,6 +52,13 @@ func _physics_process(delta: float) -> void:
 	_apply_movement(move_dir, delta)
 	_apply_rotation(delta)
 	move_and_slide()
+
+
+func _on_died() -> void:
+	is_dead = true
+	if is_aiming:
+		is_aiming = false
+		aim_stopped.emit()
 
 
 func _update_aim_state() -> void:
