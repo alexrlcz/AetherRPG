@@ -4,12 +4,18 @@
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/camera/iso_camera_rig.tscn" id="3_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="4_hud"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_knight.tscn" id="5_enemy"]
 
 [node name="Main" type="Node3D"]
 
 [node name="TestArena" parent="." instance=ExtResource("1_arena")]
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="Enemies" type="Node3D" parent="."]
+
+[node name="EnemyKnight" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -12)
 
 [node name="IsoCameraRig" parent="." instance=ExtResource("3_camera")]
 target_path = NodePath("../Player")

@@ -60,17 +60,48 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - The sword is attached to bone `Palm.R` through a `BoneAttachment3D`
   (`RightHand`). Its local scale is 0.01 because the bone space carries the
   FBX's ×100 armature scale.
-- `PlayerAnimator` (node `Player/Animator`) observes the controller and drives
-  the `AnimationPlayer`: idle / run (scaled by speed, reversed when moving
-  against the facing direction) / death. It marks idle and run as looping at
-  runtime because the FBX import does not.
+- `CharacterAnimator` (`scripts/characters/`, node `Animator`) is shared by the
+  player and enemies. It observes the body's velocity and its HealthComponent:
+  idle / run (scaled by speed, reversed when moving against the facing
+  direction) / death. Gameplay calls `play_action(anim, speed)` for one-shots
+  such as attacks. Idle and run are set to loop at runtime because the FBX
+  import does not.
 - Unused but imported for a future equipment system: `assets/equipment/`
-  (ShortSword, Katana, Club, Helmet1-3, ShoulderPads).
+  (ShortSword, Katana, Helmet1-3, ShoulderPads).
 
+## Enemies
+
+- `EnemyStats` resource (`scripts/enemies/enemy_stats.gd`) holds per-type
+  numbers; one `.tres` per enemy type in `resources/enemies/`.
+- `EnemyController` state machine: `IDLE` (walk back to spawn) -> `CHASE`
+  (within `detection_radius`) -> `ATTACK` (within `attack_range`) and back;
+  gives up beyond `lose_interest_radius` or when the target dies. `DEAD`
+  disables collision and the hurtbox.
+- Attack = wind-up (ground telegraph grows, facing locked so the player can
+  sidestep) -> strike (`AttackHitbox` live for `attack_strike_duration`) ->
+  recovery. The attack animation's speed is set so its impact frame
+  (`attack_animation_strike_time`) lines up with the end of the wind-up.
+- Target = first node in group `player`; aliveness via its `is_dead` property.
+- `enemy_knight.tscn`: the knight model recoloured through surface material
+  overrides (armour/skin/boots), wielding the Club. Stats:
+  `resources/enemies/ashbound_knight.tres`.
+- `WorldHealthBar` + `shaders/billboard_bar.gdshader`: camera-facing bar,
+  fill via the per-instance shader parameter `ratio`.
+
+## Navigation
+
+- `TestArena/NavigationRegion3D` parents all walkable/blocking static geometry
+  (ground, walls, obstacles); hazards stay outside so they don't block paths.
+- The navmesh is baked into `resources/navigation/test_arena_navmesh.tres`
+  (parses static colliders on layer 1, agent radius 0.5). Re-bake with the
+  editor's "Bake NavigationMesh" button after changing the arena.
+- The baked mesh sits 0.5 m above the floor, so agents use
+  `path_height_offset = 0.5`; without it they never advance past their first
+  waypoint.
 ## Layout
 
 ```
-scenes/main/main.tscn                Entry scene: arena + player + camera rig + HUD
+scenes/main/main.tscn                Entry scene: arena + player + enemies + camera rig + HUD
 scenes/world/test_arena.tscn         Prototype arena (ground, walls, obstacles, lighting, hazards)
 scenes/world/hazards/spike_trap.tscn Test hazard: 10 damage/s to the player
 scenes/player/player.tscn            CharacterBody3D, knight model + sword, health, hurtbox, animator
@@ -80,10 +111,16 @@ scenes/camera/iso_camera_rig.tscn
 scenes/ui/hud.tscn                   Player health bar, "Defeated" message
 scripts/components/                  health, hitbox, hurtbox components
 scripts/player/player_controller.gd
-scripts/player/player_animator.gd
+scripts/characters/character_animator.gd
+scenes/enemies/enemy_knight.tscn     Melee enemy (recoloured knight + club)
+scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
+resources/enemies/                   EnemyStats .tres files
+resources/navigation/                Baked navmeshes
+shaders/billboard_bar.gdshader
+scripts/ui/world_health_bar.gd
 scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```
 
-Planned (not yet implemented): enemy AI with NavigationRegion3D, player attack,
-floating combat text, restart after death, data-driven stat resources.
+Planned (not yet implemented): player attack, floating combat text, hit flash,
+restart after death.

@@ -14,6 +14,7 @@ signal died
 		max_health = maxi(value, 1)
 		if was_full or current_health > max_health:
 			current_health = max_health
+		health_changed.emit(current_health, max_health)
 
 ## Valid from construction (not only after _ready), so other nodes can read
 ## it regardless of scene-tree ready order.

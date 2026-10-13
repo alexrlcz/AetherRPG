@@ -1,0 +1,131 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_controller.gd" id="1_ctrl"]
+[ext_resource type="Resource" path="res://resources/enemies/ashbound_knight.tres" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="4_hurtbox"]
+[ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="5_hitbox"]
+[ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
+[ext_resource type="Script" path="res://scripts/ui/world_health_bar.gd" id="7_bar"]
+[ext_resource type="Shader" path="res://shaders/billboard_bar.gdshader" id="8_bar_shader"]
+[ext_resource type="PackedScene" path="res://assets/characters/knight/KnightCharacter.fbx" id="9_knight"]
+[ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="10_club"]
+
+[sub_resource type="CapsuleShape3D" id="Shape_body"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_armor"]
+albedo_color = Color(0.42, 0.08, 0.07, 1)
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Mat_skin"]
+albedo_color = Color(0.55, 0.58, 0.5, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_boots"]
+albedo_color = Color(0.1, 0.08, 0.08, 1)
+
+[sub_resource type="BoxShape3D" id="Shape_attack"]
+size = Vector3(1.4, 1.6, 1.6)
+
+[sub_resource type="StandardMaterial3D" id="Mat_telegraph"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(1, 0.15, 0.1, 0.45)
+
+[sub_resource type="PlaneMesh" id="Mesh_telegraph"]
+material = SubResource("Mat_telegraph")
+size = Vector2(1.4, 1.6)
+
+[sub_resource type="ShaderMaterial" id="Mat_bar"]
+render_priority = 1
+shader = ExtResource("8_bar_shader")
+
+[sub_resource type="QuadMesh" id="Mesh_bar"]
+material = SubResource("Mat_bar")
+size = Vector2(1.0, 0.13)
+
+[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "attack_hitbox", "hurtbox", "telegraph", "animator") groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_ctrl")
+stats = ExtResource("2_stats")
+health = NodePath("HealthComponent")
+nav_agent = NodePath("NavigationAgent3D")
+attack_hitbox = NodePath("AttackHitbox")
+hurtbox = NodePath("Hurtbox")
+telegraph = NodePath("Telegraph")
+animator = NodePath("Animator")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("Shape_body")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Model" parent="Visual" instance=ExtResource("9_knight")]
+transform = Transform3D(-0.32, 0, 0, 0, 0.32, 0, 0, 0, -0.32, 0, 0, 0)
+
+[node name="Knight" parent="Visual/Model/HumanArmature/Skeleton3D" index="0"]
+surface_material_override/0 = SubResource("Mat_armor")
+surface_material_override/1 = SubResource("Mat_skin")
+surface_material_override/2 = SubResource("Mat_boots")
+
+[node name="RightHand" type="BoneAttachment3D" parent="Visual/Model/HumanArmature/Skeleton3D"]
+bone_name = "Palm.R"
+
+[node name="Club" parent="Visual/Model/HumanArmature/Skeleton3D/RightHand" instance=ExtResource("10_club")]
+transform = Transform3D(0, -0.01, 0, 0.01, 0, 0, 0, 0, 0.01, 0, 0.003, 0)
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.5
+path_height_offset = 0.5
+target_desired_distance = 0.6
+height = 1.8
+radius = 0.4
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+script = ExtResource("4_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("Shape_body")
+
+[node name="AttackHitbox" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 8
+monitorable = false
+script = ExtResource("5_hitbox")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="AttackHitbox"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -1)
+shape = SubResource("Shape_attack")
+
+[node name="Telegraph" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.2)
+
+[node name="Mesh" type="MeshInstance3D" parent="Telegraph"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.8)
+cast_shadow = 0
+mesh = SubResource("Mesh_telegraph")
+
+[node name="HealthBar" type="MeshInstance3D" parent="." node_paths=PackedStringArray("health")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.15, 0)
+cast_shadow = 0
+mesh = SubResource("Mesh_bar")
+script = ExtResource("7_bar")
+health = NodePath("../HealthComponent")
+
+[node name="Animator" type="Node" parent="." node_paths=PackedStringArray("body", "health", "animation_player")]
+script = ExtResource("6_anim")
+body = NodePath("..")
+health = NodePath("../HealthComponent")
+animation_player = NodePath("../Visual/Model/AnimationPlayer")
+run_reference_speed = 4.5
