@@ -79,6 +79,19 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   the Main node) reloads the scene on `restart` once the player has been dead
   for `restart_delay` seconds.
 
+## Occlusion silhouettes
+
+- `OcclusionSilhouette` (`scripts/characters/`, node `OcclusionSilhouette`)
+  gives every mesh under `Visual` (body and weapon) a material copy with
+  `BaseMaterial3D` **X-Ray stencil mode**: the normal pass writes stencil 1
+  where the character is visible; an extra unshaded, no-depth-test pass draws
+  `color` only where stencil != 1, i.e. where something hides the character.
+  No self x-ray, and characters don't x-ray through each other.
+- Player blue `(0.35, 0.65, 1, 0.55)`, enemies red `(1, 0.3, 0.25, 0.5)`;
+  the alpha sets the strength. Turned off on death so corpses don't glow.
+- Because it copies materials at `_ready`, any later material change must go
+  through `get_materials()` (or re-apply the stencil mode).
+
 ## Spawning and debug tools
 
 - `EnemySpawner` (`scripts/world/`): `spawn_random()` picks
@@ -126,6 +139,9 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   (`knockback_speed` 3 m/s, `knockback_lift` 1.5 m/s). Corpses stay forever.
 - The CharacterBody3D stays where the character died (collision layer 0);
   only the visuals move.
+- Pause the game with `SceneTree.paused`, never `Engine.time_scale = 0`:
+  zero-length physics steps give the kinematic physical bones NaN/inf
+  velocities. (`RagdollComponent` overwrites velocities on start as a guard.)
 - Testing note: `Skeleton3D` restores pre-modifier poses after each update, so
   scripts must observe ragdoll bone positions through `BoneAttachment3D`
   nodes, not `get_bone_global_pose()`.
@@ -170,7 +186,7 @@ scenes/world/test_arena.tscn         Prototype arena (ground, walls, obstacles, 
 scenes/world/hazards/spike_trap.tscn Test hazard: 10 damage/s to the player
 scenes/player/player.tscn            CharacterBody3D, knight rig + sword, health, hurtbox, animator, ragdoll
 scenes/characters/knight_rig.tscn    GENERATED: knight FBX + ragdoll + hand attachment
-scripts/characters/                  character_animator, ragdoll_component, ragdoll_limb_follow
+scripts/characters/                  character_animator, ragdoll_component, ragdoll_limb_follow, occlusion_silhouette
 tools/build_knight_rig.gd            Generates knight_rig.tscn
 tools/import/knight_post_import.gd   Bakes the knight FBX to real-world scale on import
 assets/characters/knight/            Knight character FBX
@@ -194,4 +210,4 @@ scripts/ui/hud.gd
 ```
 
 First milestone complete. Possible next steps: enemy line-of-sight, more enemy
-types, equipment, abilities, see-through silhouettes behind obstacles.
+types, equipment, abilities.

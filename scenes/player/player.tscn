@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/characters/ragdoll_component.gd" id="20_ragdoll"]
 [ext_resource type="Script" path="res://scripts/ui/damage_numbers.gd" id="21_numbers"]
 [ext_resource type="Script" path="res://scripts/components/hit_flash_component.gd" id="22_flash"]
+[ext_resource type="Script" path="res://scripts/characters/occlusion_silhouette.gd" id="23_silhouette"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Sword.fbx" id="5_sword"]
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="7_hitbox"]
@@ -99,3 +100,9 @@ color = Color(1, 0.3, 0.25, 1)
 script = ExtResource("22_flash")
 health = NodePath("../HealthComponent")
 meshes = [NodePath("../Visual/Model/HumanArmature/Skeleton3D/Knight")]
+
+[node name="OcclusionSilhouette" type="Node" parent="." node_paths=PackedStringArray("root", "health")]
+script = ExtResource("23_silhouette")
+root = NodePath("../Visual")
+color = Color(0.35, 0.65, 1, 0.55)
+health = NodePath("../HealthComponent")

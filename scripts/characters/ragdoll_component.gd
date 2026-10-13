@@ -43,8 +43,12 @@ func start_ragdoll() -> void:
 	ragdoll_started.emit()
 	# Bodies switch to rigid simulation during the next physics step.
 	await get_tree().physics_frame
+	# Overwrite both velocities: kinematic bones can carry NaN/inf velocities
+	# after zero-length physics steps (Engine.time_scale = 0), which would
+	# explode the ragdoll. Pause the game with SceneTree.paused instead.
 	for bone in get_physical_bones():
 		bone.linear_velocity = velocity
+		bone.angular_velocity = Vector3.ZERO
 
 
 func get_physical_bones() -> Array[PhysicalBone3D]:
