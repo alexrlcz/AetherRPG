@@ -136,7 +136,11 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - `RagdollComponent` (node `Ragdoll`) listens to `HealthComponent.died`: it
   freezes the AnimationPlayer, starts the simulation and gives every bone the
   body's velocity plus a knockback away from the last damage source
-  (`knockback_speed` 3 m/s, `knockback_lift` 1.5 m/s). Corpses stay forever.
+  (`knockback_speed`, `knockback_lift`; defaults 3 and 1.5 m/s, enemies use 10
+  and 6). `knockback_spin` (rad/s, default 5) adds a backwards flip away from
+  the attacker: every bone gets `v + ω × r` about the body centre so the body
+  tumbles as one piece; `spin_randomness` varies axis and speed. Corpses stay
+  forever.
 - The CharacterBody3D stays where the character died (collision layer 0);
   only the visuals move.
 - Pause the game with `SceneTree.paused`, never `Engine.time_scale = 0`:

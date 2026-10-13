@@ -146,6 +146,8 @@ simulator = NodePath("../Visual/Model/HumanArmature/Skeleton3D/PhysicalBoneSimul
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 body = NodePath("..")
 limb_follow = NodePath("../Visual/Model/HumanArmature/Skeleton3D/RagdollLimbFollow")
+knockback_speed = 10.0
+knockback_lift = 6.0
 
 [node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
