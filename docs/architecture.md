@@ -18,6 +18,13 @@
 | `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
 | `attack`       | Left mouse (hold to repeat) | Turns toward the cursor and swings; facing locked and movement at 40% until the swing recovers. |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
+| `restart`      | R                  | After death (1 s delay): reload the level. |
+| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only). |
+| `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
+
+Attack presses are handled as input events (`_unhandled_input`), so clicks on
+UI buttons never trigger a swing. A press is queued until a swing starts, so
+very short clicks and clicks made mid-swing are not lost.
 
 ## Physics layers
 
@@ -59,6 +66,29 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   when to `start()` and what to do with facing/movement while `is_busy()`.
 - Player attack: 20 damage, 0.3 s wind-up, `Run_swordAttack` animation,
   `AttackHitbox` masks `enemy_hurtbox`.
+
+## Combat feedback
+
+- `DamageNumbers` (Node3D placed above the head, `scripts/ui/`): on
+  `HealthComponent.damaged` spawns a top-level billboard `Label3D` that rises
+  and fades. Colour per character (player red, enemies white).
+- `HitFlashComponent`: on damage sets a white unshaded `material_overlay` on
+  the listed meshes and fades it out (`duration` 0.15 s); surface material
+  overrides (enemy recolour) are untouched.
+- HUD shows "Defeated" + "Press R to try again"; `scripts/main/main.gd` (on
+  the Main node) reloads the scene on `restart` once the player has been dead
+  for `restart_delay` seconds.
+
+## Spawning and debug tools
+
+- `EnemySpawner` (`scripts/world/`): `spawn_random()` picks
+  `NavigationServer3D.map_get_random_point` points, rejects ones above
+  `max_spawn_height` (navmesh islands on rocks/pillars) or closer than
+  `min_distance` to the player, and sets the enemy's transform *before*
+  `add_child` (enemies record home/facing in `_ready`).
+- `DebugMenu` (`scenes/debug/debug_menu.tscn`): F1 panel with Spawn enemy,
+  Heal player, Kill all enemies and an alive-enemy count; F2 spawns directly.
+  Frees itself in non-debug builds (`OS.is_debug_build()`).
 
 ## Character visuals and animation
 
@@ -146,8 +176,12 @@ tools/import/knight_post_import.gd   Bakes the knight FBX to real-world scale on
 assets/characters/knight/            Knight character FBX
 assets/equipment/                    Weapon and armour FBX meshes
 scenes/camera/iso_camera_rig.tscn
-scenes/ui/hud.tscn                   Player health bar, "Defeated" message
-scripts/components/                  health, hitbox, hurtbox, melee attack components
+scenes/ui/hud.tscn                   Player health bar, "Defeated" + restart hint
+scenes/debug/debug_menu.tscn         F1 debug panel
+scripts/main/main.gd                 Restart flow (on the Main node)
+scripts/world/enemy_spawner.gd       Random navmesh spawns
+scripts/ui/damage_numbers.gd         Floating combat numbers
+scripts/components/                  health, hitbox, hurtbox, melee attack, hit flash components
 scripts/player/player_controller.gd
 scenes/enemies/enemy_knight.tscn     Melee enemy (recoloured knight + club)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
@@ -159,4 +193,5 @@ scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```
 
-Planned (not yet implemented): floating combat text, hit flash, restart after death.
+First milestone complete. Possible next steps: enemy line-of-sight, more enemy
+types, equipment, abilities, see-through silhouettes behind obstacles.

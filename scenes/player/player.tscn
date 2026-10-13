@@ -5,6 +5,8 @@
 [ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="3_hurtbox"]
 [ext_resource type="PackedScene" path="res://scenes/characters/knight_rig.tscn" id="4_knight"]
 [ext_resource type="Script" path="res://scripts/characters/ragdoll_component.gd" id="20_ragdoll"]
+[ext_resource type="Script" path="res://scripts/ui/damage_numbers.gd" id="21_numbers"]
+[ext_resource type="Script" path="res://scripts/components/hit_flash_component.gd" id="22_flash"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Sword.fbx" id="5_sword"]
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="7_hitbox"]
@@ -86,3 +88,14 @@ simulator = NodePath("../Visual/Model/HumanArmature/Skeleton3D/PhysicalBoneSimul
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 body = NodePath("..")
 limb_follow = NodePath("../Visual/Model/HumanArmature/Skeleton3D/RagdollLimbFollow")
+
+[node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+script = ExtResource("21_numbers")
+health = NodePath("../HealthComponent")
+color = Color(1, 0.3, 0.25, 1)
+
+[node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "meshes")]
+script = ExtResource("22_flash")
+health = NodePath("../HealthComponent")
+meshes = [NodePath("../Visual/Model/HumanArmature/Skeleton3D/Knight")]

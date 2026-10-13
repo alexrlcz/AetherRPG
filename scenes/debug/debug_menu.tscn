@@ -1,0 +1,58 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/debug/debug_menu.gd" id="1_debug"]
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+bg_color = Color(0.08, 0.08, 0.1, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.9, 0.75, 0.3, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+
+[node name="DebugMenu" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_debug")
+
+[node name="Panel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -236.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 176.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("Style_panel")
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
+text = "Debug  (F1 to close)"
+
+[node name="EnemyCount" type="Label" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "Enemies alive: 0"
+
+[node name="SpawnButton" type="Button" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "Spawn enemy   [F2]"
+
+[node name="HealButton" type="Button" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "Heal player"
+
+[node name="KillButton" type="Button" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "Kill all enemies"

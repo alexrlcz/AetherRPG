@@ -7,10 +7,12 @@ extends CanvasLayer
 @onready var _health_bar: ProgressBar = %HealthBar
 @onready var _health_label: Label = %HealthLabel
 @onready var _defeated_label: Label = %DefeatedLabel
+@onready var _restart_hint: Label = %RestartHint
 
 
 func _ready() -> void:
 	_defeated_label.hide()
+	_restart_hint.hide()
 	if player_health:
 		bind_player_health(player_health)
 
@@ -27,7 +29,9 @@ func _on_player_health_changed(current: int, maximum: int) -> void:
 	_health_bar.value = current
 	_health_label.text = "HP %d / %d" % [current, maximum]
 	_defeated_label.visible = current <= 0
+	_restart_hint.visible = current <= 0
 
 
 func _on_player_died() -> void:
 	_defeated_label.show()
+	_restart_hint.show()

@@ -25,6 +25,11 @@ signal aim_stopped
 
 var is_aiming: bool = false
 var is_dead: bool = false
+## Set from input events (not polled) so clicks consumed by UI don't attack.
+var _attack_held: bool = false
+## A press is remembered until an attack actually starts, so a click shorter
+## than a physics tick (or made mid-swing) is not lost.
+var _attack_queued: bool = false
 ## Horizontal unit vector the character is turning toward.
 var facing_direction: Vector3 = Vector3.FORWARD
 
@@ -44,7 +49,8 @@ func _physics_process(delta: float) -> void:
 
 	_update_aim_state()
 
-	if melee and Input.is_action_pressed("attack") and not melee.is_busy():
+	if melee and (_attack_held or _attack_queued) and not melee.is_busy():
+		_attack_queued = false
 		_start_attack()
 	var attacking := melee != null and melee.is_busy()
 
@@ -67,6 +73,19 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	# Presses only arrive here if no UI control consumed them.
+	if event.is_action_pressed("attack"):
+		_attack_held = true
+		_attack_queued = true
+
+
+func _input(event: InputEvent) -> void:
+	# Releases are always seen, even over UI, so the attack never sticks.
+	if event.is_action_released("attack"):
+		_attack_held = false
+
+
 func _start_attack() -> void:
 	var aim_dir := get_aim_direction_at(get_viewport().get_mouse_position())
 	if aim_dir != Vector3.ZERO:
@@ -77,6 +96,8 @@ func _start_attack() -> void:
 
 func _on_died() -> void:
 	is_dead = true
+	_attack_held = false
+	_attack_queued = false
 	# The body stays as an anchor but no longer blocks enemies.
 	collision_layer = 0
 	if melee:
