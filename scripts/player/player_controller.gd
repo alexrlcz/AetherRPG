@@ -21,7 +21,7 @@ signal aim_stopped
 ## so the first step has a little push before the stride settles in. 1 = off.
 @export var start_boost: float = 1.3
 ## Speed lost per second when there is no input (m/s²).
-@export var deceleration: float = 20.0
+@export var deceleration: float = 30.0
 ## Speed lost per second on the part of the velocity that does not point the
 ## way the player wants to go (turning, reversing). Higher = tighter turns.
 @export var turn_braking: float = 28.0
