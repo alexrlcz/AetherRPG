@@ -10,18 +10,34 @@ extends Node
 
 @export_group("Animations")
 @export var idle_animation: StringName = &"Sword_Idle"
+@export var walk_animation: StringName = &"Walk"
 @export var run_animation: StringName = &"Jog_Fwd"
 @export var death_animation: StringName = &"Death01"
 
 @export_group("Tuning")
+## Crossfade time into and out of one-shot actions (attacks).
 @export var blend_time: float = 0.15
+## Crossfade time between idle, walk and run. Longer reads as heavier.
+@export var locomotion_blend_time: float = 0.25
 ## Below this horizontal speed (m/s) the character is considered idle.
 @export var move_threshold: float = 0.3
+## Speed (m/s) above which the walk cycle switches to the run cycle. Leave
+## `walk_animation` empty to skip walking entirely.
+@export var walk_to_run_speed: float = 2.6
+## Dead zone around `walk_to_run_speed` so the cycles don't flicker.
+@export var walk_run_hysteresis: float = 0.3
+## Movement speed (m/s) at which the walk cycle plays at normal rate.
+@export var walk_reference_speed: float = 1.6
 ## Movement speed (m/s) at which the run cycle plays at normal rate
 ## (Jog_Fwd covers 5 m in 0.93 s).
 @export var run_reference_speed: float = 5.36
+## Playback rate limits for the locomotion cycles, so a cycle never crawls in
+## slow motion while the character is speeding up or slowing down.
+@export var min_cycle_rate: float = 0.6
+@export var max_cycle_rate: float = 1.6
 ## Moving against the facing direction more than this (dot product) plays
-## the run cycle in reverse (walking backwards).
+## the cycle in reverse (walking backwards). Only while the body reports
+## `is_aiming`, so momentum during a quick turn doesn't moonwalk.
 @export var backwards_threshold: float = -0.3
 
 var _dead: bool = false
@@ -30,7 +46,9 @@ var _action: StringName = &""
 
 func _ready() -> void:
 	# Not every locomotion animation is flagged as looping on import.
-	for anim_name in [idle_animation, run_animation]:
+	for anim_name in [idle_animation, walk_animation, run_animation]:
+		if anim_name == &"":
+			continue
 		if animation_player.has_animation(anim_name):
 			animation_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 		else:
@@ -49,11 +67,24 @@ func _process(_delta: float) -> void:
 	if speed < move_threshold:
 		_play(idle_animation, 1.0)
 		return
+	var anim := run_animation
+	var reference := run_reference_speed
+	if _uses_walk(speed):
+		anim = walk_animation
+		reference = walk_reference_speed
+	var rate := clampf(speed / reference, min_cycle_rate, max_cycle_rate)
 	var forward := -body.global_basis.z
-	var rate := speed / run_reference_speed
-	if horizontal.normalized().dot(forward) < backwards_threshold:
+	if body.get(&"is_aiming") == true 			and horizontal.normalized().dot(forward) < backwards_threshold:
 		rate = -rate
-	_play(run_animation, rate)
+	_play(anim, rate)
+
+
+func _uses_walk(speed: float) -> bool:
+	if walk_animation == &"":
+		return false
+	if animation_player.current_animation == walk_animation:
+		return speed < walk_to_run_speed + walk_run_hysteresis
+	return speed < walk_to_run_speed - walk_run_hysteresis
 
 
 ## Plays a one-shot animation; locomotion resumes when it finishes.
@@ -81,7 +112,7 @@ func stop_action() -> void:
 
 func _play(anim_name: StringName, speed: float) -> void:
 	if animation_player.current_animation != anim_name:
-		animation_player.play(anim_name, blend_time)
+		animation_player.play(anim_name, locomotion_blend_time)
 	animation_player.speed_scale = speed
 
 

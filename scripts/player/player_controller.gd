@@ -13,10 +13,21 @@ signal aim_started
 signal aim_stopped
 
 @export var move_speed: float = 6.0
-@export var acceleration: float = 40.0
-@export var deceleration: float = 50.0
+@export_group("Movement Feel")
+## Speed gained per second toward the input direction (m/s²).
+## move_speed / acceleration = seconds to reach full speed from standstill.
+@export var acceleration: float = 15.0
+## Extra multiplier on acceleration at low speed, fading out toward full speed,
+## so the first step has a little push before the stride settles in. 1 = off.
+@export var start_boost: float = 1.3
+## Speed lost per second when there is no input (m/s²).
+@export var deceleration: float = 20.0
+## Speed lost per second on the part of the velocity that does not point the
+## way the player wants to go (turning, reversing). Higher = tighter turns.
+@export var turn_braking: float = 28.0
 ## How quickly the character turns toward its facing direction.
-@export var turn_speed: float = 14.0
+@export var turn_speed: float = 11.0
+@export_group("")
 ## When this reaches zero, player input is disabled.
 @export var health: HealthComponent
 @export var melee: MeleeAttackComponent
@@ -149,11 +160,31 @@ func _camera_relative_direction(input: Vector2) -> Vector3:
 	return right * input.x + forward * -input.y
 
 
+## Momentum-based horizontal movement. Velocity is split into the part along
+## the wanted direction (accelerates toward the target speed) and the part
+## across or against it (brakes away), so starts ramp up, stops slide out and
+## direction changes carve a short arc instead of snapping.
 func _apply_movement(move_dir: Vector3, delta: float) -> void:
-	var target := move_dir * move_speed
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	var rate := acceleration if move_dir != Vector3.ZERO else deceleration
-	horizontal = horizontal.move_toward(target, rate * delta)
+	if move_dir == Vector3.ZERO:
+		horizontal = horizontal.move_toward(Vector3.ZERO, deceleration * delta)
+	else:
+		var wish_dir := move_dir.normalized()
+		var target_speed := move_dir.length() * move_speed
+		var along := horizontal.dot(wish_dir)
+		var across := horizontal - wish_dir * along
+		across = across.move_toward(Vector3.ZERO, turn_braking * delta)
+		if along < 0.0:
+			# Moving away from the wanted direction: brake hard first.
+			along = move_toward(along, 0.0, turn_braking * delta)
+		elif along > target_speed:
+			# Slowed (e.g. attacking) or gently released the stick.
+			along = move_toward(along, target_speed, deceleration * delta)
+		else:
+			var t := clampf(along / move_speed, 0.0, 1.0)
+			var accel := acceleration * lerpf(start_boost, 1.0, t)
+			along = move_toward(along, target_speed, accel * delta)
+		horizontal = wish_dir * along + across
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
 	if is_on_floor():
