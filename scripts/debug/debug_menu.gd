@@ -2,11 +2,14 @@ class_name DebugMenu
 extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
+## The panel also edits the player's appearance live (not saved).
 
 @export var spawner: EnemySpawner
 @export var player_health: HealthComponent
 ## Node whose children are the enemies (counted / killed by the buttons).
 @export var enemies: Node
+## Edited by the appearance controls; works on a copy of its resource.
+@export var player_appearance: AppearanceComponent
 
 @onready var _panel: Control = %Panel
 @onready var _count_label: Label = %EnemyCount
@@ -20,6 +23,7 @@ func _ready() -> void:
 	%SpawnButton.pressed.connect(spawn_enemy)
 	%HealButton.pressed.connect(heal_player)
 	%KillButton.pressed.connect(kill_all_enemies)
+	_setup_appearance_controls()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -56,3 +60,59 @@ func _alive_enemies() -> Array[HealthComponent]:
 		if health and not health.is_dead:
 			result.append(health)
 	return result
+
+
+# --- Appearance -------------------------------------------------------------
+
+func _setup_appearance_controls() -> void:
+	# Edit a copy so the shared .tres on disk is never modified.
+	player_appearance.appearance = player_appearance.appearance.duplicate()
+	_fill(%BodyOption, CharacterAppearance.Body.keys())
+	_fill(%SkinOption, CharacterAppearance.SkinTexture.keys())
+	_fill(%HairOption, CharacterAppearance.HAIR_STYLES)
+	_fill(%BrowOption, CharacterAppearance.EYEBROW_STYLES)
+	_sync_controls()
+	%BodyOption.item_selected.connect(func(i: int) -> void: _edit(func(a: CharacterAppearance) -> void: a.body = i as CharacterAppearance.Body))
+	%SkinOption.item_selected.connect(func(i: int) -> void: _edit(func(a: CharacterAppearance) -> void: a.skin_texture = i as CharacterAppearance.SkinTexture))
+	%SkinTint.color_changed.connect(func(c: Color) -> void: _edit(func(a: CharacterAppearance) -> void: a.skin_tint = c))
+	%HairOption.item_selected.connect(func(i: int) -> void: _edit(func(a: CharacterAppearance) -> void: a.hair_style = CharacterAppearance.HAIR_STYLES[i]))
+	%HairColor.color_changed.connect(func(c: Color) -> void: _edit(func(a: CharacterAppearance) -> void: a.hair_color = c))
+	%BrowOption.item_selected.connect(func(i: int) -> void: _edit(func(a: CharacterAppearance) -> void: a.eyebrows = CharacterAppearance.EYEBROW_STYLES[i]))
+	%BeardCheck.toggled.connect(func(on: bool) -> void: _edit(func(a: CharacterAppearance) -> void: a.beard = on))
+	%RandomizeButton.pressed.connect(randomize_appearance)
+
+
+## Applies a random look to the player.
+func randomize_appearance() -> void:
+	var a := player_appearance.appearance
+	a.body = (randi() % CharacterAppearance.Body.size()) as CharacterAppearance.Body
+	a.skin_texture = (randi() % CharacterAppearance.SkinTexture.size()) as CharacterAppearance.SkinTexture
+	a.skin_tint = Color.from_hsv(randf_range(0.0, 0.1), randf_range(0.0, 0.25), randf_range(0.8, 1.0))
+	a.hair_style = CharacterAppearance.HAIR_STYLES[randi() % CharacterAppearance.HAIR_STYLES.size()]
+	a.hair_color = Color.from_hsv(randf_range(0.0, 0.12), randf_range(0.3, 0.9), randf_range(0.1, 0.9))
+	a.eyebrows = CharacterAppearance.EYEBROW_STYLES[1 + randi() % (CharacterAppearance.EYEBROW_STYLES.size() - 1)]
+	a.beard = a.body == CharacterAppearance.Body.MALE and randf() < 0.5
+	player_appearance.apply(a)
+	_sync_controls()
+
+
+func _edit(change: Callable) -> void:
+	change.call(player_appearance.appearance)
+	player_appearance.apply(player_appearance.appearance)
+
+
+func _sync_controls() -> void:
+	var a := player_appearance.appearance
+	%BodyOption.select(a.body)
+	%SkinOption.select(a.skin_texture)
+	%SkinTint.color = a.skin_tint
+	%HairOption.select(maxi(CharacterAppearance.HAIR_STYLES.find(a.hair_style), 0))
+	%HairColor.color = a.hair_color
+	%BrowOption.select(maxi(CharacterAppearance.EYEBROW_STYLES.find(a.eyebrows), 0))
+	%BeardCheck.set_pressed_no_signal(a.beard)
+
+
+static func _fill(option: OptionButton, labels: Array) -> void:
+	option.clear()
+	for label in labels:
+		option.add_item(str(label).capitalize())

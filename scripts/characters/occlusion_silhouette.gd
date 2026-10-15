@@ -7,6 +7,8 @@ extends Node
 ## `color` only where the stencil is not 1. So the silhouette never covers the
 ## character's own visible pixels (no self x-ray) or other characters.
 ## Each surface gets its own material copy, so recolour overrides are kept.
+## Call refresh() after the character's meshes or materials change
+## (AppearanceComponent.applied is connected to it).
 
 @export var root: Node3D
 ## Silhouette colour; alpha controls how strongly it shows through obstacles.
@@ -19,10 +21,18 @@ var _materials: Array[BaseMaterial3D] = []
 
 
 func _ready() -> void:
-	for mesh: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
-		_apply(mesh)
+	refresh()
 	if health:
 		health.died.connect(set_enabled.bind(false))
+
+
+## Re-applies the silhouette to every mesh currently under `root`.
+func refresh() -> void:
+	_materials.clear()
+	for mesh: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+		if not mesh.is_queued_for_deletion():
+			_apply(mesh)
+	set_enabled(enabled)
 
 
 func set_enabled(value: bool) -> void:

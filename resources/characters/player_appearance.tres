@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CharacterAppearance" format=3]
+
+[ext_resource type="Script" path="res://scripts/characters/character_appearance.gd" id="1_appearance"]
+
+[resource]
+script = ExtResource("1_appearance")
+body = 0
+skin_texture = 0
+skin_tint = Color(1, 1, 1, 1)
+hair_style = "SimpleParted"
+hair_color = Color(0.32, 0.2, 0.12, 1)
+beard = true
+eyebrows = "Regular"

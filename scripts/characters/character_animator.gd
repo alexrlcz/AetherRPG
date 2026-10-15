@@ -9,16 +9,17 @@ extends Node
 @export var animation_player: AnimationPlayer
 
 @export_group("Animations")
-@export var idle_animation: StringName = &"HumanArmature|Idle_swordRight"
-@export var run_animation: StringName = &"HumanArmature|Run_swordRight"
-@export var death_animation: StringName = &"HumanArmature|Death"
+@export var idle_animation: StringName = &"Sword_Idle"
+@export var run_animation: StringName = &"Jog_Fwd"
+@export var death_animation: StringName = &"Death01"
 
 @export_group("Tuning")
 @export var blend_time: float = 0.15
 ## Below this horizontal speed (m/s) the character is considered idle.
 @export var move_threshold: float = 0.3
-## Movement speed (m/s) at which the run cycle plays at normal rate.
-@export var run_reference_speed: float = 6.0
+## Movement speed (m/s) at which the run cycle plays at normal rate
+## (Jog_Fwd covers 5 m in 0.93 s).
+@export var run_reference_speed: float = 5.36
 ## Moving against the facing direction more than this (dot product) plays
 ## the run cycle in reverse (walking backwards).
 @export var backwards_threshold: float = -0.3
@@ -28,7 +29,7 @@ var _action: StringName = &""
 
 
 func _ready() -> void:
-	# Imported FBX animations are not flagged as looping.
+	# Not every locomotion animation is flagged as looping on import.
 	for anim_name in [idle_animation, run_animation]:
 		if animation_player.has_animation(anim_name):
 			animation_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
@@ -60,12 +61,22 @@ func play_action(anim_name: StringName, speed: float = 1.0) -> void:
 	if _dead:
 		return
 	_action = anim_name
-	animation_player.play(anim_name, blend_time)
+	if animation_player.current_animation == anim_name:
+		# play() would just continue it (back-to-back attacks); restart.
+		animation_player.seek(0.0, true)
+	else:
+		animation_player.play(anim_name, blend_time)
 	animation_player.speed_scale = speed
 
 
 func is_playing_action() -> bool:
 	return _action != &""
+
+
+## Ends the current one-shot early (e.g. the attack's follow-through once the
+## character can move again); locomotion blends back in.
+func stop_action() -> void:
+	_action = &""
 
 
 func _play(anim_name: StringName, speed: float) -> void:

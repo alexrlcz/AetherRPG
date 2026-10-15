@@ -3,11 +3,13 @@
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_ctrl"]
 [ext_resource type="Script" path="res://scripts/components/health_component.gd" id="2_health"]
 [ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="3_hurtbox"]
-[ext_resource type="PackedScene" path="res://scenes/characters/knight_rig.tscn" id="4_knight"]
+[ext_resource type="PackedScene" path="res://scenes/characters/humanoid_rig.tscn" id="4_knight"]
 [ext_resource type="Script" path="res://scripts/characters/ragdoll_component.gd" id="20_ragdoll"]
 [ext_resource type="Script" path="res://scripts/ui/damage_numbers.gd" id="21_numbers"]
 [ext_resource type="Script" path="res://scripts/components/hit_flash_component.gd" id="22_flash"]
 [ext_resource type="Script" path="res://scripts/characters/occlusion_silhouette.gd" id="23_silhouette"]
+[ext_resource type="Script" path="res://scripts/characters/appearance_component.gd" id="24_appearance"]
+[ext_resource type="Resource" path="res://resources/characters/player_appearance.tres" id="25_look"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Sword.fbx" id="5_sword"]
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="7_hitbox"]
@@ -36,8 +38,8 @@ shape = SubResource("CapsuleShape3D_body")
 [node name="Model" parent="Visual" instance=ExtResource("4_knight")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
-[node name="Sword" parent="Visual/Model/HumanArmature/Skeleton3D/RightHand" instance=ExtResource("5_sword")]
-transform = Transform3D(0, -0.32, 0, 0.32, 0, 0, 0, 0, 0.32, 0, 0.096, 0)
+[node name="Sword" parent="Visual/Model/Armature/Skeleton3D/RightHand" instance=ExtResource("5_sword")]
+transform = Transform3D(0, 0, 0.25, 0.25, 0, 0, 0, 0.25, 0, -0.03, 0.085, 0)
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("2_health")
@@ -79,16 +81,15 @@ damage = 20
 windup = 0.3
 strike_duration = 0.12
 recovery = 0.25
-animation = &"HumanArmature|Run_swordAttack"
-animation_strike_time = 0.3
+animation = &"Sword_Attack"
+animation_strike_time = 0.37
 
-[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body", "limb_follow")]
+[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body")]
 script = ExtResource("20_ragdoll")
 health = NodePath("../HealthComponent")
-simulator = NodePath("../Visual/Model/HumanArmature/Skeleton3D/PhysicalBoneSimulator3D")
+simulator = NodePath("../Visual/Model/Armature/Skeleton3D/PhysicalBoneSimulator3D")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 body = NodePath("..")
-limb_follow = NodePath("../Visual/Model/HumanArmature/Skeleton3D/RagdollLimbFollow")
 
 [node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
@@ -96,13 +97,20 @@ script = ExtResource("21_numbers")
 health = NodePath("../HealthComponent")
 color = Color(1, 0.3, 0.25, 1)
 
-[node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "meshes")]
+[node name="Appearance" type="Node" parent="." node_paths=PackedStringArray("skeleton")]
+script = ExtResource("24_appearance")
+appearance = ExtResource("25_look")
+skeleton = NodePath("../Visual/Model/Armature/Skeleton3D")
+
+[node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "root")]
 script = ExtResource("22_flash")
 health = NodePath("../HealthComponent")
-meshes = [NodePath("../Visual/Model/HumanArmature/Skeleton3D/Knight")]
+root = NodePath("../Visual")
 
 [node name="OcclusionSilhouette" type="Node" parent="." node_paths=PackedStringArray("root", "health")]
 script = ExtResource("23_silhouette")
 root = NodePath("../Visual")
 color = Color(0.35, 0.65, 1, 0.55)
 health = NodePath("../HealthComponent")
+
+[connection signal="applied" from="Appearance" to="OcclusionSilhouette" method="refresh"]

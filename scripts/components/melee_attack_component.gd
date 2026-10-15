@@ -89,6 +89,9 @@ func _physics_process(delta: float) -> void:
 		Phase.RECOVERY:
 			if phase_time >= recovery:
 				_enter(Phase.READY)
+				# Cut the animation's follow-through so locomotion resumes.
+				if animator and animator.is_playing_action():
+					animator.stop_action()
 				finished.emit()
 
 

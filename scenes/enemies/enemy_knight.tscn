@@ -8,27 +8,19 @@
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/ui/world_health_bar.gd" id="7_bar"]
 [ext_resource type="Shader" path="res://shaders/billboard_bar.gdshader" id="8_bar_shader"]
-[ext_resource type="PackedScene" path="res://scenes/characters/knight_rig.tscn" id="9_knight"]
+[ext_resource type="PackedScene" path="res://scenes/characters/humanoid_rig.tscn" id="9_knight"]
 [ext_resource type="Script" path="res://scripts/characters/ragdoll_component.gd" id="20_ragdoll"]
 [ext_resource type="Script" path="res://scripts/ui/damage_numbers.gd" id="21_numbers"]
 [ext_resource type="Script" path="res://scripts/components/hit_flash_component.gd" id="22_flash"]
 [ext_resource type="Script" path="res://scripts/characters/occlusion_silhouette.gd" id="23_silhouette"]
+[ext_resource type="Script" path="res://scripts/characters/appearance_component.gd" id="24_appearance"]
+[ext_resource type="Resource" path="res://resources/enemies/ashbound_knight_appearance.tres" id="25_look"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="10_club"]
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.4
 height = 1.8
-
-[sub_resource type="StandardMaterial3D" id="Mat_armor"]
-albedo_color = Color(0.42, 0.08, 0.07, 1)
-roughness = 0.7
-
-[sub_resource type="StandardMaterial3D" id="Mat_skin"]
-albedo_color = Color(0.55, 0.58, 0.5, 1)
-
-[sub_resource type="StandardMaterial3D" id="Mat_boots"]
-albedo_color = Color(0.1, 0.08, 0.08, 1)
 
 [sub_resource type="BoxShape3D" id="Shape_attack"]
 size = Vector3(1.4, 1.6, 1.6)
@@ -69,13 +61,8 @@ shape = SubResource("Shape_body")
 [node name="Model" parent="Visual" instance=ExtResource("9_knight")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
-[node name="Knight" parent="Visual/Model/HumanArmature/Skeleton3D" index="0"]
-surface_material_override/0 = SubResource("Mat_armor")
-surface_material_override/1 = SubResource("Mat_skin")
-surface_material_override/2 = SubResource("Mat_boots")
-
-[node name="Club" parent="Visual/Model/HumanArmature/Skeleton3D/RightHand" instance=ExtResource("10_club")]
-transform = Transform3D(0, -0.32, 0, 0.32, 0, 0, 0, 0, 0.32, 0, 0.096, 0)
+[node name="Club" parent="Visual/Model/Armature/Skeleton3D/RightHand" instance=ExtResource("10_club")]
+transform = Transform3D(0, 0, 0.3, 0.3, 0, 0, 0, 0.3, 0, -0.03, 0.085, 0)
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
 path_desired_distance = 0.5
@@ -129,23 +116,21 @@ body = NodePath("..")
 health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 death_animation = &""
-run_reference_speed = 4.5
 
 [node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "telegraph")]
 script = ExtResource("11_melee")
 hitbox = NodePath("../AttackHitbox")
 animator = NodePath("../Animator")
 telegraph = NodePath("../Telegraph")
-animation = &"HumanArmature|swordAttackJump"
-animation_strike_time = 0.5
+animation = &"Sword_Attack"
+animation_strike_time = 0.37
 
-[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body", "limb_follow")]
+[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body")]
 script = ExtResource("20_ragdoll")
 health = NodePath("../HealthComponent")
-simulator = NodePath("../Visual/Model/HumanArmature/Skeleton3D/PhysicalBoneSimulator3D")
+simulator = NodePath("../Visual/Model/Armature/Skeleton3D/PhysicalBoneSimulator3D")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 body = NodePath("..")
-limb_follow = NodePath("../Visual/Model/HumanArmature/Skeleton3D/RagdollLimbFollow")
 knockback_speed = 10.0
 knockback_lift = 6.0
 
@@ -155,13 +140,20 @@ script = ExtResource("21_numbers")
 health = NodePath("../HealthComponent")
 color = Color(1, 0.95, 0.85, 1)
 
-[node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "meshes")]
+[node name="Appearance" type="Node" parent="." node_paths=PackedStringArray("skeleton")]
+script = ExtResource("24_appearance")
+appearance = ExtResource("25_look")
+skeleton = NodePath("../Visual/Model/Armature/Skeleton3D")
+
+[node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "root")]
 script = ExtResource("22_flash")
 health = NodePath("../HealthComponent")
-meshes = [NodePath("../Visual/Model/HumanArmature/Skeleton3D/Knight")]
+root = NodePath("../Visual")
 
 [node name="OcclusionSilhouette" type="Node" parent="." node_paths=PackedStringArray("root", "health")]
 script = ExtResource("23_silhouette")
 root = NodePath("../Visual")
 color = Color(1, 0.3, 0.25, 0.5)
 health = NodePath("../HealthComponent")
+
+[connection signal="applied" from="Appearance" to="OcclusionSilhouette" method="refresh"]

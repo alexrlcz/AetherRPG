@@ -101,46 +101,79 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   `add_child` (enemies record home/facing in `_ready`).
 - `DebugMenu` (`scenes/debug/debug_menu.tscn`): F1 panel with Spawn enemy,
   Heal player, Kill all enemies and an alive-enemy count; F2 spawns directly.
+  "Player appearance" section: body, skin texture, skin tint, hairstyle, hair
+  colour, eyebrows, beard and Randomize. It edits a duplicate of the player's
+  CharacterAppearance and calls `apply()`; changes are not saved.
   Frees itself in non-debug builds (`OS.is_debug_build()`).
 
 ## Character visuals and animation
 
-- Model: `assets/characters/knight/KnightCharacter.fbx` (rigged, 12 animations,
-  flat-colour materials). Its post-import script
-  `tools/import/knight_post_import.gd` bakes the FBX's ×100 armature scale and
-  the 0.32 character scale into the skeleton, mesh and animation keys, so every
-  node is at scale 1 and the knight is ~1.8 m tall (required for physics).
-- `scenes/characters/knight_rig.tscn` = the FBX + ragdoll + `RightHand`
-  attachment. It is **generated** by `tools/build_knight_rig.gd` (bone table
-  at the top of that file); re-run it instead of hand-editing:
-  `godot --headless --path . -s res://tools/build_knight_rig.gd`.
-- Player and enemy instance the rig at `Visual/Model`, rotated 180° because
-  the FBX faces +Z while gameplay forward is -Z. Weapons are children of
-  `RightHand` (bone `Palm.R`) with scale 0.32 because the weapon FBXs are
-  still in their original units.
+- Models: Quaternius "Universal Base Characters" + "Universal Animation
+  Library" (CC0, licences in `assets/characters/universal/`). Male and female
+  bodies, hairstyles, beard, eyebrows and the 43 animations all share one
+  65-bone UE-mannequin-style skeleton (`pelvis`, `spine_01..03`, `hand_r`, ...),
+  ~1.82 m tall, metre units, facing +Z.
+- `UAL1_Standard.glb` (no root motion) is imported as an **AnimationLibrary**
+  (`importer="animation_library"`). Its post-import script
+  `tools/import/ual_post_import.gd` removes position tracks except `root` and
+  `pelvis`, and all scale tracks: the animations were authored on a mannequin
+  with different bone lengths, so only rotations are applied and each body
+  keeps its own proportions. `remove_immutable_tracks` is off so constant
+  rotation tracks are kept. Godot strips the `_Loop` suffix on import
+  (`Idle_Loop` -> `Idle`, `Jog_Fwd_Loop` -> `Jog_Fwd`).
+- `scenes/characters/humanoid_rig.tscn` = the male body glTF + ragdoll +
+  `RightHand` attachment (bone `hand_r`) + `AnimationPlayer` with the library.
+  It is **generated** by `tools/build_humanoid_rig.gd` (bone table at the top);
+  re-run it instead of hand-editing:
+  `godot --headless --path . -s res://tools/build_humanoid_rig.gd`.
+- Player and enemy instance the rig at `Visual/Model`, rotated 180° (model
+  faces +Z, gameplay forward is -Z). Weapons are children of `RightHand`; the
+  blade (+Y of the weapon FBXs) runs along hand +Z (pinky -> index knuckles),
+  scale 0.25 (sword) / 0.3 (club) because the weapon FBXs are in their
+  original units.
+- Appearance: `CharacterAppearance` resource (`scripts/characters/`) = body
+  (male/female), skin texture (light/dark) + tint, hairstyle, hair colour,
+  beard, eyebrows. `AppearanceComponent` (node `Appearance`) builds it on the
+  rig at `_ready` and on every `apply()`: it removes the rig's preview meshes,
+  moves the skinned meshes of each part glTF onto the rig's `Skeleton3D`
+  (skins bind by bone name), gives each part its own tinted material copy
+  (hair textures are greyscale), copies the chosen body's bone rests onto the
+  skeleton and shifts the skeleton by the body/animation pelvis-height
+  difference so the feet stay on the ground. It emits `applied`, which is
+  connected to `OcclusionSilhouette.refresh()`. `HitFlash` uses `root` (all
+  meshes under `Visual`, found at flash time) for the same reason.
+  Looks: `resources/characters/player_appearance.tres`,
+  `resources/enemies/ashbound_knight_appearance.tres`.
+- The ragdoll's capsules are sized for the male rests; on the female body they
+  are slightly oversized (narrower shoulders) but the joints still line up.
 - `CharacterAnimator` (`scripts/characters/`, node `Animator`) is shared by the
   player and enemies. It observes the body's velocity and its HealthComponent:
-  idle / run (scaled by speed, reversed when moving against the facing
-  direction). Gameplay calls `play_action(anim, speed)` for one-shots such as
-  attacks. Idle and run are set to loop at runtime because the FBX import does
-  not. `death_animation` is empty because the ragdoll handles death.
+  idle (`Sword_Idle`) / run (`Jog_Fwd`, rate = speed / 5.36 m/s, reversed when
+  moving against the facing direction). Gameplay calls
+  `play_action(anim, speed)` for one-shots such as attacks (restarting it if
+  it is already playing); `MeleeAttackComponent` calls `stop_action()` when
+  recovery ends so the follow-through doesn't block locomotion. Both attacks
+  use `Sword_Attack` (blow lands at 0.37 s). `death_animation` is empty
+  because the ragdoll handles death.
+- Old knight assets (`assets/characters/knight/`, `knight_rig.tscn`,
+  `build_knight_rig.gd`, `knight_post_import.gd`, `RagdollLimbFollow`) are
+  no longer used; kept until the new characters are confirmed.
 
 ## Ragdoll
 
-- 12 `PhysicalBone3D`s (pelvis, abdomen, chest, head, upper/lower arms and
-  legs) under `Skeleton3D/PhysicalBoneSimulator3D`, capsule shapes, cone joints
-  with swing/twist limits, layer 7 `ragdoll`, mask `world`.
-- The feet are IK bones parented to the root, not to the shins.
-  `RagdollLimbFollow` (a `SkeletonModifier3D` after the simulator, active only
-  while ragdolling) glues `Foot.L/R` to `LowerLeg.L/R_end`.
+- 11 `PhysicalBone3D`s (pelvis, spine_02 (chest), head, upper/lower arms,
+  thighs, calves) under `Skeleton3D/PhysicalBoneSimulator3D`, capsule shapes,
+  cone joints with swing/twist limits, layer 7 `ragdoll`, mask `world`.
+  Unsimulated bones (spine_01, neck, clavicles, hands, feet) follow their
+  nearest simulated parent.
 - `RagdollComponent` (node `Ragdoll`) listens to `HealthComponent.died`: it
   freezes the AnimationPlayer, starts the simulation and gives every bone the
   body's velocity plus a knockback away from the last damage source
   (`knockback_speed`, `knockback_lift`; defaults 3 and 1.5 m/s, enemies use 10
   and 6). `knockback_spin` (rad/s, default 5) adds a backwards flip away from
-  the attacker: every bone gets `v + ω × r` about the body centre so the body
+  the attacker: every bone gets `v + w x r` about the body centre so the body
   tumbles as one piece; `spin_randomness` varies axis and speed. Corpses stay
-  forever.
+  forever. Its optional `limb_follow` was only needed by the knight's IK feet.
 - The CharacterBody3D stays where the character died (collision layer 0);
   only the visuals move.
 - Pause the game with `SceneTree.paused`, never `Engine.time_scale = 0`:
@@ -196,12 +229,14 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 scenes/main/main.tscn                Entry scene: arena + player + enemies + camera rig + HUD
 scenes/world/test_arena.tscn         Prototype arena (ground, walls, obstacles, lighting, hazards)
 scenes/world/hazards/spike_trap.tscn Test hazard: 10 damage/s to the player
-scenes/player/player.tscn            CharacterBody3D, knight rig + sword, health, hurtbox, animator, ragdoll
-scenes/characters/knight_rig.tscn    GENERATED: knight FBX + ragdoll + hand attachment
-scripts/characters/                  character_animator, ragdoll_component, ragdoll_limb_follow, occlusion_silhouette
-tools/build_knight_rig.gd            Generates knight_rig.tscn
-tools/import/knight_post_import.gd   Bakes the knight FBX to real-world scale on import
-assets/characters/knight/            Knight character FBX
+scenes/player/player.tscn            CharacterBody3D, humanoid rig + sword, appearance, health, hurtbox, animator, ragdoll
+scenes/characters/humanoid_rig.tscn  GENERATED: male body glTF + ragdoll + hand attachment + animations
+scripts/characters/                  character_animator, character_appearance, appearance_component, ragdoll_component, occlusion_silhouette
+tools/build_humanoid_rig.gd          Generates humanoid_rig.tscn
+tools/import/ual_post_import.gd      Strips per-bone position tracks from the animation library
+assets/characters/universal/         Base character bodies, hair parts, animation library (CC0)
+resources/characters/                CharacterAppearance .tres files
+(unused)                             knight_rig.tscn, build_knight_rig.gd, knight_post_import.gd, assets/characters/knight/
 assets/equipment/                    Weapon and armour FBX meshes
 scenes/camera/iso_camera_rig.tscn
 scenes/ui/hud.tscn                   Player health bar, "Defeated" + restart hint
@@ -211,9 +246,9 @@ scripts/world/enemy_spawner.gd       Random navmesh spawns
 scripts/ui/damage_numbers.gd         Floating combat numbers
 scripts/components/                  health, hitbox, hurtbox, melee attack, hit flash components
 scripts/player/player_controller.gd
-scenes/enemies/enemy_knight.tscn     Melee enemy (recoloured knight + club)
+scenes/enemies/enemy_knight.tscn     Melee enemy (ash-skinned humanoid + club)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
-resources/enemies/                   EnemyStats .tres files
+resources/enemies/                   EnemyStats and enemy CharacterAppearance .tres files
 resources/navigation/                Baked navmeshes
 shaders/billboard_bar.gdshader
 scripts/ui/world_health_bar.gd
@@ -221,5 +256,6 @@ scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```
 
-First milestone complete. Enemy line-of-sight added. Possible next steps: more
+First milestone complete. Enemy line-of-sight added. Characters replaced with
+the Universal base characters + runtime appearance. Possible next steps: more
 enemy types, equipment, abilities.

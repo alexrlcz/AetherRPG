@@ -27,7 +27,7 @@ unique_name_in_owner = true
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -236.0
+offset_left = -276.0
 offset_top = 16.0
 offset_right = -16.0
 offset_bottom = 176.0
@@ -56,3 +56,69 @@ text = "Heal player"
 [node name="KillButton" type="Button" parent="Panel/VBox"]
 unique_name_in_owner = true
 text = "Kill all enemies"
+
+[node name="Separator" type="HSeparator" parent="Panel/VBox"]
+
+[node name="AppearanceTitle" type="Label" parent="Panel/VBox"]
+theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
+text = "Player appearance"
+
+[node name="Appearance" type="GridContainer" parent="Panel/VBox"]
+theme_override_constants/h_separation = 8
+columns = 2
+
+[node name="BodyLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Body"
+
+[node name="BodyOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="SkinLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Skin"
+
+[node name="SkinOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="SkinTintLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Skin tint"
+
+[node name="SkinTint" type="ColorPickerButton" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 26)
+size_flags_horizontal = 3
+edit_alpha = false
+
+[node name="HairLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Hair"
+
+[node name="HairOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="HairColorLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Hair colour"
+
+[node name="HairColor" type="ColorPickerButton" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 26)
+size_flags_horizontal = 3
+edit_alpha = false
+
+[node name="BrowLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Eyebrows"
+
+[node name="BrowOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="BeardLabel" type="Label" parent="Panel/VBox/Appearance"]
+text = "Beard"
+
+[node name="BeardCheck" type="CheckBox" parent="Panel/VBox/Appearance"]
+unique_name_in_owner = true
+
+[node name="RandomizeButton" type="Button" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "Randomize appearance"

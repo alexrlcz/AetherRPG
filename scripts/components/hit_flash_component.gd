@@ -5,11 +5,15 @@ extends Node
 
 @export var health: HealthComponent
 @export var meshes: Array[GeometryInstance3D] = []
+## Alternative to `meshes`: flash every MeshInstance3D under this node, found
+## at flash time (for characters whose parts change at runtime).
+@export var root: Node3D
 @export var color: Color = Color(1, 1, 1, 0.7)
 @export var duration: float = 0.15
 
 var _material: StandardMaterial3D
 var _tween: Tween
+var _targets: Array[GeometryInstance3D] = []
 
 
 func _ready() -> void:
@@ -25,7 +29,9 @@ func _on_damaged(_amount: int, _source: Node) -> void:
 
 
 func flash() -> void:
-	for mesh in meshes:
+	_clear()
+	_targets = _collect()
+	for mesh in _targets:
 		mesh.material_overlay = _material
 	_material.albedo_color = color
 	if _tween:
@@ -37,9 +43,20 @@ func flash() -> void:
 
 ## True while the overlay is visible (used by tests).
 func is_flashing() -> bool:
-	return _material.albedo_color.a > 0.0 and meshes.size() > 0 and meshes[0].material_overlay == _material
+	return _material.albedo_color.a > 0.0 and _targets.size() > 0 and _targets[0].material_overlay == _material
+
+
+func _collect() -> Array[GeometryInstance3D]:
+	if root == null:
+		return meshes
+	var result: Array[GeometryInstance3D] = []
+	for mesh: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+		result.append(mesh)
+	return result
 
 
 func _clear() -> void:
-	for mesh in meshes:
-		mesh.material_overlay = null
+	for mesh in _targets:
+		if is_instance_valid(mesh):
+			mesh.material_overlay = null
+	_targets.clear()

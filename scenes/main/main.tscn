@@ -34,7 +34,8 @@ enemy_scene = ExtResource("5_enemy")
 container = NodePath("../Enemies")
 avoid = NodePath("../Player")
 
-[node name="DebugMenu" parent="." node_paths=PackedStringArray("spawner", "player_health", "enemies") instance=ExtResource("8_debug")]
+[node name="DebugMenu" parent="." node_paths=PackedStringArray("spawner", "player_health", "enemies", "player_appearance") instance=ExtResource("8_debug")]
 spawner = NodePath("../EnemySpawner")
 player_health = NodePath("../Player/HealthComponent")
 enemies = NodePath("../Enemies")
+player_appearance = NodePath("../Player/Appearance")
