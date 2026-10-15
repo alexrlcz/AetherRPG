@@ -16,6 +16,11 @@ extends Resource
 @export var detection_radius: float = 8.0
 ## Gives up and returns home when the target gets this far away.
 @export var lose_interest_radius: float = 14.0
+## Detection also needs an unobstructed line of sight through world geometry.
+@export var requires_line_of_sight: bool = true
+## While chasing without sight, heads for the last seen position for this long
+## before giving up.
+@export var lose_sight_time: float = 3.0
 
 @export_group("Attack")
 ## Starts an attack when the target is within this distance.

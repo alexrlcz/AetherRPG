@@ -22,11 +22,21 @@ enum State { IDLE, CHASE, ATTACK, DEAD }
 ## Distance from home that counts as "home".
 @export var home_tolerance: float = 0.5
 
+@export_group("Sight")
+## Height of the eyes above the origin (feet) for line-of-sight rays.
+@export var eye_height: float = 1.6
+## Height on the target the line-of-sight ray aims at.
+@export var target_aim_height: float = 1.0
+## Physics layers that block sight (world).
+@export_flags_3d_physics var sight_mask: int = 1
+
 var state: State = State.IDLE
 var target: Node3D
 var facing_direction: Vector3 = Vector3.FORWARD
 
 var _repath_timer: float = 0.0
+var _last_seen_position: Vector3
+var _unseen_time: float = 0.0
 var _home: Vector3
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -62,8 +72,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _process_idle() -> Vector3:
-	if _target_alive() and _distance_to_target() <= stats.detection_radius:
-		_set_state(State.CHASE)
+	if _target_alive() and _distance_to_target() <= stats.detection_radius and can_see_target():
+		_start_chase()
 		return Vector3.ZERO
 	if _flat(global_position - _home).length() > home_tolerance:
 		return _navigate_to(_home)
@@ -74,6 +84,16 @@ func _process_chase(delta: float) -> Vector3:
 	if not _target_alive() or _distance_to_target() > stats.lose_interest_radius:
 		_set_state(State.IDLE)
 		return Vector3.ZERO
+	if can_see_target():
+		_last_seen_position = target.global_position
+		_unseen_time = 0.0
+	else:
+		# Out of sight: search the last seen spot, then give up.
+		_unseen_time += delta
+		if _unseen_time >= stats.lose_sight_time:
+			_set_state(State.IDLE)
+			return Vector3.ZERO
+		return _navigate_to(_last_seen_position)
 	if _distance_to_target() <= stats.attack_range:
 		_start_attack()
 		return Vector3.ZERO
@@ -82,6 +102,24 @@ func _process_chase(delta: float) -> Vector3:
 		_repath_timer = repath_interval
 		nav_agent.target_position = target.global_position
 	return _next_path_direction()
+
+
+func _start_chase() -> void:
+	_last_seen_position = target.global_position
+	_unseen_time = 0.0
+	_set_state(State.CHASE)
+
+
+## True when nothing on `sight_mask` blocks the ray from the eyes to the target.
+func can_see_target() -> bool:
+	if not stats.requires_line_of_sight:
+		return true
+	if target == null:
+		return false
+	var from := global_position + Vector3.UP * eye_height
+	var to := target.global_position + Vector3.UP * target_aim_height
+	var query := PhysicsRayQueryParameters3D.create(from, to, sight_mask, [get_rid()])
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _start_attack() -> void:
@@ -151,9 +189,9 @@ func _on_died() -> void:
 
 
 func _on_damaged(_amount: int, _source: Node) -> void:
-	# Getting hit reveals the attacker, even outside detection range.
+	# Getting hit reveals the attacker, even outside detection range or sight.
 	if state == State.IDLE and _target_alive():
-		_set_state(State.CHASE)
+		_start_chase()
 
 
 func _target_alive() -> bool:

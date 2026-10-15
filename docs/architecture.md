@@ -157,13 +157,21 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - `EnemyStats` resource (`scripts/enemies/enemy_stats.gd`) holds per-type
   numbers; one `.tres` per enemy type in `resources/enemies/`.
 - `EnemyController` state machine: `IDLE` (walk back to spawn) -> `CHASE`
-  (within `detection_radius`) -> `ATTACK` (within `attack_range`) and back;
-  gives up beyond `lose_interest_radius` or when the target dies. `DEAD`
+  (within `detection_radius` and in line of sight) -> `ATTACK` (within
+  `attack_range`) and back; gives up beyond `lose_interest_radius` or when the
+  target dies.
+- Line of sight: `can_see_target()` raycasts from `eye_height` to the target's
+  `target_aim_height` against `sight_mask` (world layer). Pillars and walls
+  block sight; low rocks may not. While chasing without sight the enemy heads
+  to the last seen position and returns home after `stats.lose_sight_time`
+  seconds. `stats.requires_line_of_sight = false` restores radius-only
+  detection. `DEAD`
   disables collision and the hurtbox.
 - Attacks go through the enemy's `MeleeAttack` node (`MeleeAttackComponent`),
   configured from `stats` at ready. Facing locks when the wind-up starts so
   the player can sidestep.
-- Taking damage while idle switches the enemy to `CHASE` (hit aggro).
+- Taking damage while idle switches the enemy to `CHASE` (hit aggro), even
+  without line of sight.
 - Target = first node in group `player`; aliveness via its `is_dead` property.
 - `enemy_knight.tscn`: the knight model recoloured through surface material
   overrides (armour/skin/boots), wielding the Club. Stats:
@@ -213,5 +221,5 @@ scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```
 
-First milestone complete. Possible next steps: enemy line-of-sight, more enemy
-types, equipment, abilities.
+First milestone complete. Enemy line-of-sight added. Possible next steps: more
+enemy types, equipment, abilities.
