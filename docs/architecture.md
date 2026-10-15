@@ -148,8 +148,11 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   are slightly oversized (narrower shoulders) but the joints still line up.
 - `CharacterAnimator` (`scripts/characters/`, node `Animator`) is shared by the
   player and enemies. It observes the body's velocity and its HealthComponent:
-  idle (`Sword_Idle`) / run (`Jog_Fwd`, rate = speed / 5.36 m/s, reversed when
-  moving against the facing direction). Gameplay calls
+  idle (`Sword_Idle`) / walk (`Walk`, below `walk_to_run_speed` 2.6 m/s, with
+  hysteresis) / run (`Jog_Fwd`, rate = speed / 5.36 m/s), cycle rate clamped to
+  0.6–1.6x, 0.25 s locomotion crossfades. The cycle plays reversed when moving
+  against the facing direction, but only while the body's `is_aiming` is true
+  (so momentum during a quick turn doesn't moonwalk). Gameplay calls
   `play_action(anim, speed)` for one-shots such as attacks (restarting it if
   it is already playing); `MeleeAttackComponent` calls `stop_action()` when
   recovery ends so the follow-through doesn't block locomotion. Both attacks
@@ -212,13 +215,49 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - `WorldHealthBar` + `shaders/billboard_bar.gdshader`: camera-facing bar,
   fill via the per-instance shader parameter `ratio`.
 
+## Player movement feel
+
+- `PlayerController._apply_movement()` is momentum-based: velocity along the
+  wanted direction accelerates (`acceleration` 15 m/s², `start_boost` 1.3x at
+  standstill fading to 1x), the part across/against it brakes (`turn_braking`
+  28), and with no input it slows at `deceleration` 30. Roughly 0.4 s to full
+  speed, 0.2 s to stop, short arcs on direction changes. Tunables are in the
+  "Movement Feel" export group.
+
+## Levels
+
+- `scenes/world/dungeon_01.tscn` is the current level. It is **generated** by
+  `tools/build_dungeon.gd` from the Dungeon Scrawl map
+  `assets/maps/dungeon_01.ds` (preview: `dungeon_01_preview.png`); re-run it
+  instead of hand-editing:
+  `godot --headless --path . -s res://tools/build_dungeon.gd`.
+- The generator reads the .ds zip (`map` JSON): the template's dungeon shape
+  polygon (floor + outer walls), its polylines (partition walls), door assets
+  (wooden frames) and text labels (a `Marker3D` per label under `Markers`,
+  e.g. `Start`, `BossRoom`). 1 grid cell (36 px) = `CELL` 2 m; map x -> +X,
+  map y -> +Z, bounding-box centre = origin.
+- Floor = one box per run of grid cells; walls = boxes on the void side of
+  each edge (2.6 m). Outer walls facing the camera (+X/+Z) are drawn only
+  0.9 m tall so they don't hide the room, but their collision stays full
+  height (movement and enemy line of sight are unaffected). Torches go on the
+  other walls (one per edge >= 4 cells, two from 8).
+- Props are a hand-placed table at the top of the script (grid-cell
+  coordinates): pillars, crates, barrels, tables, chest, rubble, statue,
+  braziers, campfire, throne (static bodies under the navigation region) and
+  decor without collision (carpet, bedroll). Placeholder primitive meshes.
+- The player start and the single (boss-room) enemy are placed in
+  `main.tscn` at the `Start` / `BossRoom` marker positions.
+- `test_arena.tscn` and its navmesh are no longer used by `main.tscn`.
+
 ## Navigation
 
 - `TestArena/NavigationRegion3D` parents all walkable/blocking static geometry
   (ground, walls, obstacles); hazards stay outside so they don't block paths.
-- The navmesh is baked into `resources/navigation/test_arena_navmesh.tres`
-  (parses static colliders on layer 1, agent radius 0.5). Re-bake with the
-  editor's "Bake NavigationMesh" button after changing the arena.
+- The dungeon navmesh is baked by `tools/build_dungeon.gd` into
+  `resources/navigation/dungeon_01_navmesh.tres` (static colliders on layer 1,
+  agent radius 0.5, agent height 2). The test arena's
+  (`test_arena_navmesh.tres`) is baked with the editor's "Bake NavigationMesh"
+  button.
 - The baked mesh sits 0.5 m above the floor, so agents use
   `path_height_offset = 0.5`; without it they never advance past their first
   waypoint.
@@ -226,13 +265,16 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 ## Layout
 
 ```
-scenes/main/main.tscn                Entry scene: arena + player + enemies + camera rig + HUD
-scenes/world/test_arena.tscn         Prototype arena (ground, walls, obstacles, lighting, hazards)
+scenes/main/main.tscn                Entry scene: dungeon + player + enemies + camera rig + HUD
+scenes/world/dungeon_01.tscn         GENERATED level (tools/build_dungeon.gd from assets/maps/dungeon_01.ds)
+scenes/world/test_arena.tscn         Old prototype arena (unused)
 scenes/world/hazards/spike_trap.tscn Test hazard: 10 damage/s to the player
 scenes/player/player.tscn            CharacterBody3D, humanoid rig + sword, appearance, health, hurtbox, animator, ragdoll
 scenes/characters/humanoid_rig.tscn  GENERATED: male body glTF + ragdoll + hand attachment + animations
 scripts/characters/                  character_animator, character_appearance, appearance_component, ragdoll_component, occlusion_silhouette
 tools/build_humanoid_rig.gd          Generates humanoid_rig.tscn
+tools/build_dungeon.gd               Generates dungeon_01.tscn + its navmesh
+assets/maps/                         Dungeon Scrawl source maps (.ds) and previews
 tools/import/ual_post_import.gd      Strips per-bone position tracks from the animation library
 assets/characters/universal/         Base character bodies, hair parts, animation library (CC0)
 resources/characters/                CharacterAppearance .tres files
@@ -257,5 +299,6 @@ scripts/ui/hud.gd
 ```
 
 First milestone complete. Enemy line-of-sight added. Characters replaced with
-the Universal base characters + runtime appearance. Possible next steps: more
+the Universal base characters + runtime appearance. Weighted movement. First
+dungeon level generated from a Dungeon Scrawl map. Possible next steps: more
 enemy types, equipment, abilities.
