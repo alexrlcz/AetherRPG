@@ -24,6 +24,12 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 
 
+func _exit_tree() -> void:
+	# Freed mid-flash (scene restart): detach the overlay before its material
+	# goes away, or the meshes are left pointing at a freed material.
+	_clear()
+
+
 func _on_damaged(_amount: int, _source: Node) -> void:
 	flash()
 
@@ -51,7 +57,8 @@ func _collect() -> Array[GeometryInstance3D]:
 		return meshes
 	var result: Array[GeometryInstance3D] = []
 	for mesh: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
-		result.append(mesh)
+		if not mesh.is_in_group(&"vfx"):  # weapon trails and other effects
+			result.append(mesh)
 	return result
 
 

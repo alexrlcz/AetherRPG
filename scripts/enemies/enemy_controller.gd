@@ -1,13 +1,15 @@
 class_name EnemyController
 extends CharacterBody3D
-## Melee enemy AI: idle (return home) -> chase -> telegraphed attack -> dead.
+## Melee enemy AI: idle (return home) -> chase -> telegraphed attack -> dead,
+## plus stagger: a staggering hit cancels whatever the enemy was doing and
+## the knockback/hitstun from `reaction` has priority until it recovers.
 ##
 ## Targets the first node in the "player" group. Movement uses a
 ## NavigationAgent3D on the baked navigation mesh. Numbers come from `stats`.
 
 signal state_changed(new_state: State)
 
-enum State { IDLE, CHASE, ATTACK, DEAD }
+enum State { IDLE, CHASE, ATTACK, STAGGER, DEAD }
 
 @export var stats: EnemyStats
 @export var health: HealthComponent
@@ -15,6 +17,8 @@ enum State { IDLE, CHASE, ATTACK, DEAD }
 @export var hurtbox: HurtboxComponent
 ## Runs the telegraphed attack; its timing and damage are set from `stats`.
 @export var melee: MeleeAttackComponent
+## Optional: hit reactions (hitstun, knockback, poise).
+@export var reaction: HitReactionComponent
 
 @export_group("Navigation")
 ## How often the chase path is recomputed.
@@ -49,6 +53,10 @@ func _ready() -> void:
 	melee.windup = stats.attack_windup
 	melee.strike_duration = stats.attack_strike_duration
 	melee.recovery = stats.attack_recovery
+	if reaction:
+		reaction.poise = stats.poise
+		reaction.knockback_scale = stats.knockback_scale
+		reaction.staggered.connect(_on_staggered)
 	_home = global_position
 	facing_direction = -global_basis.z
 
@@ -65,6 +73,11 @@ func _physics_process(delta: float) -> void:
 			move_dir = _process_chase(delta)
 		State.ATTACK:
 			_process_attack()
+		State.STAGGER:
+			_process_stagger()
+	if reaction:
+		# Hyper armour while winding up and swinging; recovery is punishable.
+		reaction.armored = state == State.ATTACK 			and melee.phase != MeleeAttackComponent.Phase.RECOVERY
 
 	_apply_movement(move_dir, delta)
 	_apply_rotation(delta)
@@ -137,6 +150,14 @@ func _process_attack() -> void:
 		_set_state(State.CHASE if _target_alive() else State.IDLE)
 
 
+func _process_stagger() -> void:
+	if not reaction.is_reacting():
+		if _target_alive():
+			_start_chase()
+		else:
+			_set_state(State.IDLE)
+
+
 func _navigate_to(point: Vector3) -> Vector3:
 	if nav_agent.target_position.distance_to(point) > 0.1:
 		nav_agent.target_position = point
@@ -155,6 +176,10 @@ func _next_path_direction() -> Vector3:
 func _apply_movement(move_dir: Vector3, delta: float) -> void:
 	velocity.x = move_dir.x * stats.move_speed
 	velocity.z = move_dir.z * stats.move_speed
+	if reaction and state != State.DEAD:
+		# Knockback (also the small push of a flinch) rides on top.
+		velocity.x += reaction.knockback_velocity.x
+		velocity.z += reaction.knockback_velocity.z
 	if move_dir != Vector3.ZERO:
 		facing_direction = move_dir
 	if is_on_floor():
@@ -164,7 +189,7 @@ func _apply_movement(move_dir: Vector3, delta: float) -> void:
 
 
 func _apply_rotation(delta: float) -> void:
-	if state == State.ATTACK or state == State.DEAD:
+	if state == State.ATTACK or state == State.STAGGER or state == State.DEAD:
 		return
 	if state == State.CHASE and _target_alive() and _distance_to_target() <= stats.attack_range * 1.5:
 		facing_direction = _flat(target.global_position - global_position).normalized()
@@ -186,6 +211,13 @@ func _on_died() -> void:
 	# Corpse: no longer blocks movement or receives hits.
 	collision_layer = 0
 	hurtbox.set_deferred("monitorable", false)
+
+
+func _on_staggered(_event: HitEvent) -> void:
+	if state == State.DEAD:
+		return
+	melee.cancel()
+	_set_state(State.STAGGER)
 
 
 func _on_damaged(_amount: int, _source: Node) -> void:

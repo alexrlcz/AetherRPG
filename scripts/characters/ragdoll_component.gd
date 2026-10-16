@@ -15,6 +15,9 @@ signal ragdoll_started
 @export var body: CharacterBody3D
 ## Optional modifier that keeps IK-parented bones (feet) attached.
 @export var limb_follow: SkeletonModifier3D
+## Optional: the killing HitEvent sets the fling direction and strength
+## (AttackProfile.ragdoll_force), so heavy finishers throw harder.
+@export var hurtbox: HurtboxComponent
 
 @export_group("Knockback")
 ## Horizontal speed (m/s) away from the attacker on the killing blow.
@@ -43,7 +46,14 @@ func start_ragdoll() -> void:
 		return
 	is_ragdoll = true
 	var away := _away_from_attacker()
-	var velocity := _inherited_velocity() + away * knockback_speed + Vector3.UP * knockback_lift
+	var force := 1.0
+	var killing_hit: HitEvent = hurtbox.last_hit if hurtbox else null
+	if killing_hit:
+		if killing_hit.direction != Vector3.ZERO:
+			away = killing_hit.direction
+		if killing_hit.profile:
+			force = killing_hit.profile.ragdoll_force
+	var velocity := _inherited_velocity() + (away * knockback_speed + Vector3.UP * knockback_lift) * force
 	start_spin = _spin(away)
 	animation_player.pause()
 	if limb_follow:

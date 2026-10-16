@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Cleave"
+weight = 1
+damage = 40
+windup = 0.62
+windup_hold = 0.14
+strike_duration = 0.1
+recovery = 0.55
+animation = &"Sword_Attack"
+anim_strike_start = 0.37
+anim_strike_end = 0.5
+anim_recovery_end = 0.77
+chain_delay = 0.3
+move_cancel = 0.4
+lunge_distance = 0.9
+lunge_lead = 0.12
+hitstop = 0.11
+camera_shake = 0.55
+knockback = 7.5
+hitstun = 0.6
+stagger = 40.0
+ragdoll_force = 1.6
+impact_scale = 1.5
+impact_color = Color(1, 0.62, 0.3, 1)
+trail_color = Color(1, 0.7, 0.4, 0.65)

@@ -45,6 +45,12 @@ var _action: StringName = &""
 
 
 func _ready() -> void:
+	# Advance animations on physics ticks, in lockstep with gameplay timers
+	# (attack phases, hit windows, blade sweeps). On render frames they drift
+	# apart at low frame rates and the hit window no longer matches the swing.
+	# Bodies already move per tick (no physics interpolation), so nothing
+	# visible is lost.
+	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	# Not every locomotion animation is flagged as looping on import.
 	for anim_name in [idle_animation, walk_animation, run_animation]:
 		if anim_name == &"":
@@ -87,17 +93,36 @@ func _uses_walk(speed: float) -> bool:
 	return speed < walk_to_run_speed - walk_run_hysteresis
 
 
-## Plays a one-shot animation; locomotion resumes when it finishes.
-func play_action(anim_name: StringName, speed: float = 1.0) -> void:
+## Plays a one-shot animation from `from_time` (s); locomotion resumes when it
+## finishes.
+func play_action(anim_name: StringName, speed: float = 1.0, from_time: float = 0.0) -> void:
 	if _dead:
 		return
 	_action = anim_name
 	if animation_player.current_animation == anim_name:
 		# play() would just continue it (back-to-back attacks); restart.
-		animation_player.seek(0.0, true)
+		animation_player.seek(from_time, true)
 	else:
 		animation_player.play(anim_name, blend_time)
+		if from_time > 0.0:
+			animation_player.seek(from_time, true)
 	animation_player.speed_scale = speed
+
+
+## The one-shot playing now, or &"" during locomotion.
+func current_action() -> StringName:
+	return _action
+
+
+## Seconds into the current animation.
+func get_action_position() -> float:
+	return animation_player.current_animation_position
+
+
+## Changes the playback speed of the current one-shot (e.g. per attack phase).
+func set_action_speed(speed: float) -> void:
+	if _action != &"":
+		animation_player.speed_scale = speed
 
 
 func is_playing_action() -> bool:

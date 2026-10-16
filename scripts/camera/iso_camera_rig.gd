@@ -22,12 +22,61 @@ extends Node3D
 @export var max_zoom_size: float = 30.0
 @export var zoom_step: float = 2.0
 
+@export_group("Impact Shake")
+## Largest camera offset (world units) at full strength.
+@export var shake_max_offset: float = 0.3
+## Strength lost per real second (hitstop does not slow it).
+@export var shake_decay: float = 4.0
+@export var shake_frequency: float = 32.0
+## Share of the offset that is a directional punch along the hit, rather
+## than random shake.
+@export_range(0.0, 1.0) var shake_punch: float = 0.6
+
+const GROUP := &"camera_rig"
+
 @onready var camera: Camera3D = $Camera3D
 
+## Strength of the most recent add_impulse() (debugging, tests).
+var last_impulse_strength: float = 0.0
+
 var _target: Node3D
+var _trauma: float = 0.0
+var _punch_dir: Vector2 = Vector2.ZERO
+var _shake_time: float = 0.0
+
+
+## Kicks the view along `world_direction` with `strength` 0..1. The strongest
+## recent impulse wins; impulses never stack past full strength.
+func add_impulse(world_direction: Vector3, strength: float) -> void:
+	if strength <= 0.0:
+		return
+	last_impulse_strength = strength
+	_trauma = clampf(maxf(_trauma, strength), 0.0, 1.0)
+	var screen := Vector2(world_direction.dot(camera.global_basis.x),
+		world_direction.dot(camera.global_basis.y))
+	_punch_dir = screen.normalized() if screen.length() > 0.001 else Vector2.ZERO
+
+
+func get_shake_strength() -> float:
+	return _trauma
+
+
+func _process(delta: float) -> void:
+	if _trauma <= 0.0:
+		return
+	var real_delta := minf(delta / maxf(Engine.time_scale, 0.0001), 0.1)
+	_shake_time += real_delta
+	_trauma = maxf(_trauma - shake_decay * real_delta, 0.0)
+	var amount := _trauma * _trauma
+	var noise := Vector2(sin(_shake_time * shake_frequency),
+		sin(_shake_time * shake_frequency * 1.31 + 1.7))
+	var offset := (_punch_dir * shake_punch + noise * (1.0 - shake_punch)) * amount * shake_max_offset
+	camera.h_offset = offset.x
+	camera.v_offset = offset.y
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	rotation = Vector3(deg_to_rad(-pitch_degrees), deg_to_rad(yaw_degrees), 0.0)
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.position = Vector3(0.0, 0.0, distance)

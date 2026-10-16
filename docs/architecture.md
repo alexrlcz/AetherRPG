@@ -16,15 +16,18 @@
 |----------------|--------------------|-----------|
 | `move_*`       | WASD / arrow keys  | Screen-relative movement; character faces movement direction. |
 | `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
-| `attack`       | Left mouse (hold to repeat) | Turns toward the cursor and swings; facing locked and movement at 40% until the swing recovers. |
+| `attack`       | Left mouse (hold to repeat) | Light combo: Slash -> Rising Cut -> Slash... (see Combat feel). |
+| `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
 | `restart`      | R                  | After death (1 s delay): reload the level. |
 | `debug_menu`   | F1                 | Toggle the debug panel (debug builds only). |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
 
 Attack presses are handled as input events (`_unhandled_input`), so clicks on
-UI buttons never trigger a swing. A press is queued until a swing starts, so
-very short clicks and clicks made mid-swing are not lost.
+UI buttons never trigger a swing. A press is buffered for
+`input_buffer_time` (0.3 s); a press made during recovery waits for the
+chain point however long it is. Holding `attack` repeats the first combo step
+after each full recovery; only presses chain combos.
 
 ## Physics layers
 
@@ -44,28 +47,121 @@ Damage flows through small reusable nodes, never through direct calls between
 entities:
 
 ```
-HitboxComponent (Area3D, mask = target hurtbox layer)
-   └─ overlaps ─► HurtboxComponent (Area3D on *_hurtbox layer)
-                     └─ receive_hit() ─► HealthComponent.take_damage()
-                                            └─ signals: health_changed, damaged, healed, died
+HitboxComponent (Area3D, mask = target hurtbox layer; optional sweep)
+   └─ contact ─► HitEvent ─► HurtboxComponent.receive_event()
+                                ├─ HealthComponent.take_damage() ─► damaged / died / ...
+                                └─ hit_received(event) ─► HitReactionComponent (victim)
+   └─ hit_landed(event) ─► MeleeAttackComponent.hit_confirmed ─► ImpactFeedbackComponent (attacker)
 ```
+
+`HitEvent` (`scripts/combat/hit_event.gd`) is the one description of a
+confirmed contact: source, hitbox, hurtbox, `AttackProfile`, damage applied,
+lethal, contact `point`, knockback `direction` (attacker -> victim) and
+`swing_direction` (weapon motion at contact). Everything that reacts to a hit
+reads it; nothing reacts to an attack merely starting.
 
 - `HealthComponent` (Node): `max_health`, `current_health`, `take_damage()`,
   `heal()`, `reset()`. Valid from construction, independent of ready order.
-- `HurtboxComponent`: forwards hits to its `health`; emits `hurt(amount, source)`.
-- `HitboxComponent`: while `active`, hits each overlapping hurtbox once per
-  activation, or every `rehit_interval` seconds if > 0 (hazards, DoT zones).
-  `source` defaults to the scene owner.
+- `HurtboxComponent`: `receive_event(event)` applies damage, fills in
+  `applied`/`lethal`, then emits `hurt(amount, source)` and
+  `hit_received(event)` (only if damage was taken). `last_hit` is set before
+  damage so `died` listeners (ragdoll) can read the killing blow.
+  `receive_hit(amount, source)` remains for plain damage.
+- `HitboxComponent`: while `active`, hits each hurtbox once per activation, or
+  every `rehit_interval` seconds if > 0 (hazards, DoT zones). `source`
+  defaults to the scene owner; `profile` (set per attack) goes on the event.
+  With `sweep` on (player blade) each tick tests interpolated samples of its
+  shapes between the previous and current pose (`sweep_spacing` 0.12 m between
+  samples), so rotating arcs are followed and nothing is skipped at any tick
+  rate. `close_after_current_pose()` ends the window only after the final
+  tick's pose was tested (bone poses apply at the end of a tick, so a hitbox
+  always sees the previous tick's pose).
 - Teams are decided purely by physics layers: player attacks mask
   `enemy_hurtbox`, enemy attacks and hazards mask `player_hurtbox`.
 - UI (`HUD`) only listens to `HealthComponent` signals.
-- `MeleeAttackComponent` runs one attack for anyone: wind-up (optional
-  ground telegraph grows) -> strike (hitbox live) -> recovery, plus the attack
-  animation, sped up so its impact frame (`animation_strike_time`) lands at the
-  end of the wind-up. Signals: `started`, `struck`, `finished`. The owner decides
-  when to `start()` and what to do with facing/movement while `is_busy()`.
-- Player attack: 20 damage, 0.3 s wind-up, `Run_swordAttack` animation,
-  `AttackHitbox` masks `enemy_hurtbox`.
+- `MeleeAttackComponent` runs one `AttackProfile` at a time: wind-up
+  (optional ground telegraph grows; optional `windup_hold` beat) -> strike
+  (hitbox live) -> recovery. Each phase plays its own animation segment at its
+  own speed (markers `anim_start`, `anim_strike_start`, `anim_strike_end`,
+  `anim_recovery_end`, in seconds into the clip), so the visible swing and the
+  hit window agree whatever the timings. Without a profile, its exported
+  fields describe the attack (the enemy, from `EnemyStats`, one playback
+  speed). `chain(profile)` starts the next attack out of recovery after
+  `chain_delay`, continuing the same clip from its current pose;
+  `end_recovery()` after `move_cancel`; `lunge_speed()` for the owner's
+  forward step. Signals: `started`, `struck`, `strike_ended`, `finished`,
+  `hit_confirmed(event)`.
+- `AttackProfile` (`scripts/combat/attack_profile.gd`, `.tres` in
+  `resources/combat/`): damage, weight (LIGHT/HEAVY), timings, animation
+  markers, chain/move-cancel windows, lunge, and impact data (hitstop, camera
+  shake, knockback, hitstun, poise damage `stagger`, ragdoll force, effect size
+  and colour, trail colour).
+- Player `AttackHitbox` (masks `enemy_hurtbox`, `sweep` on) is a
+  0.25 x 0.3 x 0.9 m box along the blade under the `RightHand` bone
+  attachment: only the swinging blade hits.
+- `CharacterAnimator` runs its AnimationPlayer on **physics ticks**
+  (`callback_mode_process = PHYSICS`), in lockstep with the attack phase
+  timers and the blade sweep. On render frames they drift apart at low frame
+  rates (seen headless at ~12 fps: the strike window passed while the sword
+  was still raised). Bodies already move per tick (no physics interpolation).
+
+## Combat feel
+
+Player attacks (all from the one `Sword_Attack` clip, which contains two
+slashes: an overhead downward cut at 0.37-0.50 s and a rising backhand at
+0.77-0.90 s):
+
+| Attack | Input | Wind-up | Strike | Recovery | Damage | Notes |
+|---|---|---|---|---|---|---|
+| Slash | light | 0.32 s (anim 0-0.37) | 0.12 s (0.37-0.50) | 0.40 s (0.50-0.77) | 18 | chain after 0.08 s, move-cancel 0.26 s, lunge 0.35 m |
+| Rising Cut | light (chained) | 0.14 s (from current pose to 0.77) | 0.12 s (0.77-0.90) | 0.50 s (0.90-1.40, back to guard) | 22 | chain after 0.28 s, lunge 0.4 m |
+| Cleave | heavy | 0.62 s incl. 0.14 s hold at the top | 0.10 s (0.37-0.50) | 0.55 s (0.50-0.77) | 40 | breaks poise, knockback 7.5, hitstun 0.6 s, hitstop 0.11 s, lunge 0.9 m |
+
+- Combo order lives on the player (`light_combo`, `heavy_attack`,
+  `light_after_heavy`): profiles never reference each other (cyclic
+  resources don't load reliably). Light -> light, light -> heavy and
+  heavy -> Rising Cut all chain.
+- Commitment: attacking stops the player dead; it turns toward the cursor at
+  `attack_turn_speed` during the wind-up only, then facing locks. The only
+  movement is the lunge (stops once the attack connects), and movement input
+  ends recovery after `move_cancel`.
+- `HitReactionComponent` (`scripts/combat/`), on the player and enemies:
+  - stagger: hitstun (`is_reacting()`), decaying `knockback_velocity` the owner
+    applies through `move_and_slide` (walls stop it), `Hit_Chest` (light) /
+    `Hit_Head` (heavy) played to fit the hitstun, and a spring lean of the
+    `Visual` root along the hit direction (7° light, 13° heavy). The hit
+    animations only recoil backwards; the lean gives the direction.
+  - poise: while `armored` (enemy and player during wind-up and strike),
+    hits only flinch (half lean, 20% knockback) until their `stagger` adds up
+    past `poise` (enemy 30 from `EnemyStats.poise`, player 20); then they
+    stagger and cancel the attack. Recovery is never armoured. Poise damage
+    resets 2 s after the last hit. A light Slash (12) needs 3 hits to break an
+    attacking enemy; Cleave (40) breaks it at once.
+  - hits without a profile (hazards) only flinch; lethal hits are left to the
+    ragdoll, which flings along the killing hit scaled by `ragdoll_force`.
+- `Hitstop` (`scripts/combat/hitstop.gd`, node in `main.tscn`, group
+  `hitstop`): the only code that sets `Engine.time_scale`, to 0.03 (never 0,
+  see Ragdoll) for the hit's real-time duration. Overlapping requests extend
+  to the longest, capped at `max_duration` 0.18 s per stop; a request within
+  `cooldown` 0.08 s of the last stop is halved.
+- `ImpactFeedbackComponent` (`scripts/combat/`): attacker-side, driven only by
+  `hit_confirmed`. Spawns an impact effect at the contact point, requests
+  hitstop, kicks the camera (`IsoCameraRig.add_impulse`, group `camera_rig`:
+  directional punch + shake on `Camera3D.h_offset/v_offset`, decaying in real
+  time) and plays the hit sound; killing blows add +0.05 s hitstop and +0.25
+  shake. Several targets on one tick share one hitstop/kick/sound. Every
+  strike plays a swing whoosh, so a miss sounds different from a hit. The
+  enemy has one too (hitstop x0.8) for when the player gets hit.
+- Placeholders to replace: `ImpactEffect` (`scripts/vfx/impact_effect.gd`:
+  primitive sparks, flash and slash streak; set
+  `ImpactFeedbackComponent.effect_scene` to an authored scene with the same
+  `setup(event, strength)`), `PlaceholderSfx` (`scripts/audio/`, synthesised
+  hit thump and whoosh; assign the `*_sound` AudioStream exports).
+- `WeaponTrail` (`scripts/vfx/`, under the player's `RightHand`): additive
+  ribbon between the blade's base and tip during each strike, in the
+  profile's `trail_color`, interpolating the blade transform between frames
+  so it draws arcs. Effect meshes are in group `vfx`, which `HitFlash` and
+  `OcclusionSilhouette` skip.
 
 ## Combat feedback
 
@@ -74,7 +170,8 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
   and fades. Colour per character (player red, enemies white).
 - `HitFlashComponent`: on damage sets a white unshaded `material_overlay` on
   the listed meshes and fades it out (`duration` 0.15 s); surface material
-  overrides (enemy recolour) are untouched.
+  overrides (enemy recolour) are untouched. Clears the overlay when freed
+  mid-flash.
 - HUD shows "Defeated" + "Press R to try again"; `scripts/main/main.gd` (on
   the Main node) reloads the scene on `restart` once the player has been dead
   for `restart_delay` seconds.
@@ -206,6 +303,13 @@ HitboxComponent (Area3D, mask = target hurtbox layer)
 - Attacks go through the enemy's `MeleeAttack` node (`MeleeAttackComponent`),
   configured from `stats` at ready. Facing locks when the wind-up starts so
   the player can sidestep.
+- `STAGGER` state: a staggering hit (`HitReaction.staggered`) cancels the
+  attack; navigation and attacks are suspended until hitstun ends, then the
+  enemy resumes `CHASE`. Knockback (also a flinch's small push) is added to
+  its velocity in every live state. `EnemyStats.poise` / `knockback_scale`
+  configure the reaction.
+- The enemy's own `AttackHitbox` is still the fixed box in front of it (not
+  club-shaped and not swept).
 - Taking damage while idle switches the enemy to `CHASE` (hit aggro), even
   without line of sight.
 - Target = first node in group `player`; aliveness via its `is_dead` property.
@@ -287,6 +391,11 @@ scripts/main/main.gd                 Restart flow (on the Main node)
 scripts/world/enemy_spawner.gd       Random navmesh spawns
 scripts/ui/damage_numbers.gd         Floating combat numbers
 scripts/components/                  health, hitbox, hurtbox, melee attack, hit flash components
+scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop
+scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
+scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
+resources/combat/                    Player AttackProfiles (slash, rising cut, cleave)
+tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
 scripts/player/player_controller.gd
 scenes/enemies/enemy_knight.tscn     Melee enemy (ash-skinned humanoid + club)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
@@ -300,5 +409,8 @@ scripts/ui/hud.gd
 
 First milestone complete. Enemy line-of-sight added. Characters replaced with
 the Universal base characters + runtime appearance. Weighted movement. First
-dungeon level generated from a Dungeon Scrawl map. Possible next steps: more
-enemy types, equipment, abilities.
+dungeon level generated from a Dungeon Scrawl map. Combat feel: swept blade
+hits, attack profiles with a light combo and a heavy attack, hit reactions
+with poise, hitstop, impact effects and placeholder sounds. Possible next
+steps: real hit/swing sounds and VFX, a club-shaped swept hitbox for the
+enemy, more enemy types, equipment, abilities.

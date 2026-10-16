@@ -6,6 +6,10 @@ extends Resource
 
 @export_group("Survival")
 @export var max_health: int = 60
+## Poise damage absorbed during its own attacks before a hit interrupts them.
+@export var poise: float = 30.0
+## Multiplier on knockback taken (heavier enemies < 1).
+@export var knockback_scale: float = 1.0
 
 @export_group("Movement")
 @export var move_speed: float = 3.5

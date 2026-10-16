@@ -30,7 +30,8 @@ func _ready() -> void:
 func refresh() -> void:
 	_materials.clear()
 	for mesh: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
-		if not mesh.is_queued_for_deletion():
+		# Effect meshes (group "vfx", e.g. weapon trails) keep their own look.
+		if not mesh.is_queued_for_deletion() and not mesh.is_in_group(&"vfx"):
 			_apply(mesh)
 	set_enabled(enabled)
 

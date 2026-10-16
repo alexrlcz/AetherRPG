@@ -14,18 +14,28 @@
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="7_hitbox"]
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="8_melee"]
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="30_profile"]
+[ext_resource type="Resource" path="res://resources/combat/player_slash.tres" id="31_slash"]
+[ext_resource type="Resource" path="res://resources/combat/player_rising_cut.tres" id="32_rising"]
+[ext_resource type="Resource" path="res://resources/combat/player_cleave.tres" id="33_cleave"]
+[ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="34_reaction"]
+[ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="35_feedback"]
+[ext_resource type="Script" path="res://scripts/vfx/weapon_trail.gd" id="36_trail"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
 height = 1.8
 
 [sub_resource type="BoxShape3D" id="Shape_attack"]
-size = Vector3(1.6, 1.6, 1.8)
+size = Vector3(0.25, 0.3, 0.9)
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("health", "melee") groups=["player"]]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "health", "melee") groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_ctrl")
+light_combo = Array[ExtResource("30_profile")]([ExtResource("31_slash"), ExtResource("32_rising")])
+heavy_attack = ExtResource("33_cleave")
+reaction = NodePath("HitReaction")
 health = NodePath("HealthComponent")
 melee = NodePath("MeleeAttack")
 
@@ -40,6 +50,10 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 [node name="Sword" parent="Visual/Model/Armature/Skeleton3D/RightHand" instance=ExtResource("5_sword")]
 transform = Transform3D(0, 0, 0.25, 0.25, 0, 0, 0, 0.25, 0, -0.03, 0.085, 0)
+
+[node name="WeaponTrail" type="Node3D" parent="Visual/Model/Armature/Skeleton3D/RightHand" node_paths=PackedStringArray("melee")]
+script = ExtResource("36_trail")
+melee = NodePath("../../../../../../MeleeAttack")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("2_health")
@@ -56,14 +70,15 @@ health = NodePath("../HealthComponent")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="AttackHitbox" type="Area3D" parent="."]
+[node name="AttackHitbox" type="Area3D" parent="Visual/Model/Armature/Skeleton3D/RightHand"]
 collision_layer = 0
 collision_mask = 16
 monitorable = false
 script = ExtResource("7_hitbox")
+sweep = true
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="AttackHitbox"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -1)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.03, 0.085, 0.52)
 shape = SubResource("Shape_attack")
 
 [node name="Animator" type="Node" parent="." node_paths=PackedStringArray("body", "health", "animation_player")]
@@ -75,21 +90,38 @@ death_animation = &""
 
 [node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator")]
 script = ExtResource("8_melee")
-hitbox = NodePath("../AttackHitbox")
+hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
 animator = NodePath("../Animator")
 damage = 20
-windup = 0.3
-strike_duration = 0.12
-recovery = 0.25
+windup = 0.42
+strike_duration = 0.13
+recovery = 0.5
 animation = &"Sword_Attack"
 animation_strike_time = 0.37
+animation_strike_end = 0.5
+animation_recovery_end = 1.0
 
-[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body")]
+[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body", "hurtbox")]
 script = ExtResource("20_ragdoll")
 health = NodePath("../HealthComponent")
 simulator = NodePath("../Visual/Model/Armature/Skeleton3D/PhysicalBoneSimulator3D")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 body = NodePath("..")
+hurtbox = NodePath("../Hurtbox")
+
+[node name="HitReaction" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "health", "visual", "animator")]
+script = ExtResource("34_reaction")
+hurtbox = NodePath("../Hurtbox")
+health = NodePath("../HealthComponent")
+visual = NodePath("../Visual")
+animator = NodePath("../Animator")
+hitstun_scale = 0.7
+knockback_scale = 0.8
+poise = 20.0
+
+[node name="ImpactFeedback" type="Node" parent="." node_paths=PackedStringArray("melee")]
+script = ExtResource("35_feedback")
+melee = NodePath("../MeleeAttack")
 
 [node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)

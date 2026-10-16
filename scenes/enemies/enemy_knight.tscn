@@ -17,6 +17,8 @@
 [ext_resource type="Resource" path="res://resources/enemies/ashbound_knight_appearance.tres" id="25_look"]
 [ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="10_club"]
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
+[ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="26_reaction"]
+[ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="27_feedback"]
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.4
@@ -42,7 +44,7 @@ shader = ExtResource("8_bar_shader")
 material = SubResource("Mat_bar")
 size = Vector2(1.0, 0.13)
 
-[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee") groups=["enemies"]]
+[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "reaction") groups=["enemies"]]
 collision_layer = 4
 collision_mask = 3
 script = ExtResource("1_ctrl")
@@ -51,6 +53,7 @@ health = NodePath("HealthComponent")
 nav_agent = NodePath("NavigationAgent3D")
 hurtbox = NodePath("Hurtbox")
 melee = NodePath("MeleeAttack")
+reaction = NodePath("HitReaction")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -125,14 +128,27 @@ telegraph = NodePath("../Telegraph")
 animation = &"Sword_Attack"
 animation_strike_time = 0.37
 
-[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body")]
+[node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body", "hurtbox")]
 script = ExtResource("20_ragdoll")
 health = NodePath("../HealthComponent")
 simulator = NodePath("../Visual/Model/Armature/Skeleton3D/PhysicalBoneSimulator3D")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 body = NodePath("..")
+hurtbox = NodePath("../Hurtbox")
 knockback_speed = 10.0
 knockback_lift = 6.0
+
+[node name="HitReaction" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "health", "visual", "animator")]
+script = ExtResource("26_reaction")
+hurtbox = NodePath("../Hurtbox")
+health = NodePath("../HealthComponent")
+visual = NodePath("../Visual")
+animator = NodePath("../Animator")
+
+[node name="ImpactFeedback" type="Node" parent="." node_paths=PackedStringArray("melee")]
+script = ExtResource("27_feedback")
+melee = NodePath("../MeleeAttack")
+hitstop_scale = 0.8
 
 [node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
