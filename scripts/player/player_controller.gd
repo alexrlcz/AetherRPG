@@ -6,15 +6,20 @@ extends CharacterBody3D
 ## - Not aiming: the character turns to face its movement direction.
 ## - Holding "aim" (right mouse): the character keeps facing the mouse cursor
 ##   while moving, so it can walk backwards or strafe.
+## - "lock_on" (middle mouse) locks onto the nearest enemy (`lock_on`), and
+##   "cycle_target" (Tab) steps to the next one. While locked the character
+##   always faces the target, like holding "aim"; the lock wins over "aim".
 ## - "attack" (left mouse) steps through `light_combo`; "heavy_attack" (E)
 ##   swings `heavy_attack`. Presses are buffered for `input_buffer_time`, and a
 ##   buffered press chains out of the current attack's recovery once its
 ##   AttackProfile.chain_delay has passed. Holding "attack" repeats the first
 ##   combo step after each full recovery.
-## - Attacking stops the character dead. It turns quickly toward the cursor
-##   during the wind-up, then facing locks; the only movement is the attack's
-##   lunge. Late in recovery (AttackProfile.move_cancel) movement input ends
-##   the attack.
+## - Attack direction: locked on -> the target; holding "aim" -> the cursor;
+##   otherwise the way the model already faces (the cursor is ignored).
+## - Attacking stops the character dead. During the wind-up it turns quickly
+##   toward the attack direction (target or cursor), then facing locks; the
+##   only movement is the attack's lunge. Late in recovery
+##   (AttackProfile.move_cancel) movement input ends the attack.
 ## - A staggering hit (`reaction`) interrupts everything for its hitstun.
 
 signal aim_started
@@ -48,14 +53,20 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 ## Turn rate toward the cursor during an attack's wind-up (fast, not instant).
 @export var attack_turn_speed: float = 22.0
 @export var reaction: HitReactionComponent
+@export var lock_on: LockOnComponent
 @export_group("")
 ## When this reaches zero, player input is disabled.
 @export var health: HealthComponent
 @export var melee: MeleeAttackComponent
 
 var is_aiming: bool = false
+## Facing is decoupled from movement (aiming or locked on); the animator plays
+## backwards locomotion while this is true.
+var is_strafing: bool:
+	get:
+		return is_aiming or is_locked_on()
 var is_dead: bool = false
-## When not ZERO, used instead of the mouse cursor as the aim direction
+## When not ZERO, used instead of the mouse cursor position while aiming
 ## (scripted sequences, tests, a future gamepad stick).
 var aim_override: Vector3 = Vector3.ZERO
 ## Set from input events (not polled) so clicks consumed by UI don't attack.
@@ -111,11 +122,15 @@ func _physics_process(delta: float) -> void:
 	if attacking or reacting:
 		move_dir = Vector3.ZERO  # Committed: only lunge / knockback move the body.
 	if winding_up:
-		var aim_dir := _cursor_aim()
+		var aim_dir := _attack_aim()
 		if aim_dir != Vector3.ZERO:
 			facing_direction = aim_dir
 	elif attacking or reacting:
 		pass  # Facing stays locked through the strike, recovery and hitstun.
+	elif is_locked_on():
+		var target_dir := lock_on.direction_from(global_position)
+		if target_dir != Vector3.ZERO:
+			facing_direction = target_dir
 	elif is_aiming:
 		var aim_dir := _cursor_aim()
 		if aim_dir != Vector3.ZERO:
@@ -146,6 +161,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		request_attack(false)
 	elif event.is_action_pressed("heavy_attack"):
 		request_attack(true)
+	elif event.is_action_pressed("lock_on"):
+		if lock_on and not is_dead:
+			lock_on.toggle()
+	elif event.is_action_pressed("cycle_target"):
+		if lock_on and not is_dead:
+			lock_on.cycle()
+			get_viewport().set_input_as_handled()  # Keep Tab from moving UI focus.
 
 
 func _input(event: InputEvent) -> void:
@@ -200,9 +222,15 @@ func _begin_attack(profile: AttackProfile, chained: bool) -> void:
 		_combo_step = light_after_heavy
 	else:
 		_combo_step = (light_combo.find(profile) + 1) % maxi(light_combo.size(), 1)
-	var aim_dir := _cursor_aim()
+	var aim_dir := _attack_aim()
 	if aim_dir != Vector3.ZERO:
 		facing_direction = aim_dir
+	else:
+		# Attack exactly where the model points, even mid-turn.
+		var forward := -global_basis.z
+		forward.y = 0.0
+		if forward.length_squared() > 0.0001:
+			facing_direction = forward.normalized()
 	_stop_dead()
 
 
@@ -232,6 +260,8 @@ func _on_died() -> void:
 	collision_layer = 0
 	if melee:
 		melee.cancel()
+	if lock_on:
+		lock_on.release()
 	if is_aiming:
 		is_aiming = false
 		aim_stopped.emit()
@@ -245,6 +275,20 @@ func _update_aim_state() -> void:
 			aim_started.emit()
 		else:
 			aim_stopped.emit()
+
+
+func is_locked_on() -> bool:
+	return lock_on != null and lock_on.is_locked()
+
+
+## Direction an attack goes: the locked target, else the cursor while aiming,
+## else ZERO (keep the model's current facing).
+func _attack_aim() -> Vector3:
+	if is_locked_on():
+		return lock_on.direction_from(global_position)
+	if is_aiming:
+		return _cursor_aim()
+	return Vector3.ZERO
 
 
 func _cursor_aim() -> Vector3:

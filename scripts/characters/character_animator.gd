@@ -37,7 +37,8 @@ extends Node
 @export var max_cycle_rate: float = 1.6
 ## Moving against the facing direction more than this (dot product) plays
 ## the cycle in reverse (walking backwards). Only while the body reports
-## `is_aiming`, so momentum during a quick turn doesn't moonwalk.
+## `is_strafing` (aiming or locked on), so momentum during a quick turn
+## doesn't moonwalk.
 @export var backwards_threshold: float = -0.3
 
 var _dead: bool = false
@@ -80,7 +81,7 @@ func _process(_delta: float) -> void:
 		reference = walk_reference_speed
 	var rate := clampf(speed / reference, min_cycle_rate, max_cycle_rate)
 	var forward := -body.global_basis.z
-	if body.get(&"is_aiming") == true 			and horizontal.normalized().dot(forward) < backwards_threshold:
+	if body.get(&"is_strafing") == true 			and horizontal.normalized().dot(forward) < backwards_threshold:
 		rate = -rate
 	_play(anim, rate)
 

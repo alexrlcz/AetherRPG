@@ -21,6 +21,7 @@
 [ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="34_reaction"]
 [ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="35_feedback"]
 [ext_resource type="Script" path="res://scripts/vfx/weapon_trail.gd" id="36_trail"]
+[ext_resource type="Script" path="res://scripts/player/lock_on_component.gd" id="37_lock"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -29,13 +30,14 @@ height = 1.8
 [sub_resource type="BoxShape3D" id="Shape_attack"]
 size = Vector3(0.25, 0.3, 0.9)
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "health", "melee") groups=["player"]]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "health", "melee") groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_ctrl")
 light_combo = Array[ExtResource("30_profile")]([ExtResource("31_slash"), ExtResource("32_rising")])
 heavy_attack = ExtResource("33_cleave")
 reaction = NodePath("HitReaction")
+lock_on = NodePath("LockOn")
 health = NodePath("HealthComponent")
 melee = NodePath("MeleeAttack")
 
@@ -122,6 +124,10 @@ poise = 20.0
 [node name="ImpactFeedback" type="Node" parent="." node_paths=PackedStringArray("melee")]
 script = ExtResource("35_feedback")
 melee = NodePath("../MeleeAttack")
+
+[node name="LockOn" type="Node" parent="." node_paths=PackedStringArray("body")]
+script = ExtResource("37_lock")
+body = NodePath("..")
 
 [node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)

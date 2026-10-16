@@ -16,6 +16,8 @@
 |----------------|--------------------|-----------|
 | `move_*`       | WASD / arrow keys  | Screen-relative movement; character faces movement direction. |
 | `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
+| `lock_on`      | Middle mouse       | Lock onto the nearest visible enemy within 15 m, or release the lock. While locked the character always faces the target and strafes like `aim`; the lock wins over `aim`. |
+| `cycle_target` | Tab                | Next lock target, nearest to farthest, wrapping (locks the nearest if unlocked). |
 | `attack`       | Left mouse (hold to repeat) | Light combo: Slash -> Rising Cut -> Slash... (see Combat feel). |
 | `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
@@ -28,6 +30,20 @@ UI buttons never trigger a swing. A press is buffered for
 `input_buffer_time` (0.3 s); a press made during recovery waits for the
 chain point however long it is. Holding `attack` repeats the first combo step
 after each full recovery; only presses chain combos.
+
+Attack direction: locked on -> toward the target; holding `aim` -> toward
+the cursor (fast turn during the wind-up); otherwise exactly where the model
+already faces, and the cursor is ignored.
+
+Lock-on (`LockOnComponent`, node `LockOn` on the player) finds candidates in
+the "enemies" group (alive, within `lock_range`, line of sight on layer 1).
+The lock breaks past `break_range` (20 m) or after `lose_sight_time` (1 s)
+out of sight; when the target dies it jumps to the next-nearest enemy or
+releases; player death releases it. The marker (ground ring + pointer above
+the health bar) is built in code and lives in the "vfx" group. The player
+exposes `is_strafing` (aiming or locked), which the animator uses for
+backwards locomotion. Tab is consumed by the player so it doesn't move UI
+focus, but if a UI control already has focus it may take Tab first.
 
 ## Physics layers
 
@@ -396,7 +412,9 @@ scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
 scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
 resources/combat/                    Player AttackProfiles (slash, rising cut, cleave)
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
+tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd
+scripts/player/lock_on_component.gd  Enemy lock-on (middle mouse / Tab) and target marker
 scenes/enemies/enemy_knight.tscn     Melee enemy (ash-skinned humanoid + club)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
 resources/enemies/                   EnemyStats and enemy CharacterAppearance .tres files
