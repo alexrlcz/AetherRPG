@@ -41,8 +41,30 @@ extends Node
 ## doesn't moonwalk.
 @export var backwards_threshold: float = -0.3
 
+@export_group("Directional Locomotion")
+## While the body reports `is_strafing` (facing decoupled from movement), the
+## cycle is picked from the movement direction relative to the facing:
+## forward (walk/run above), strafe, backward diagonal or backward. Clips may
+## carry a "reference_speed" meta (m/s, see tools/build_mixamo_library.gd)
+## used instead of `run_reference_speed` for their playback rate. A missing
+## clip falls back to the forward cycle played in reverse.
+@export var strafe_left_animation: StringName = &"MX/Strafe_L"
+@export var strafe_right_animation: StringName = &"MX/Strafe_R"
+@export var backward_left_animation: StringName = &"MX/Jog_Bwd_L"
+@export var backward_right_animation: StringName = &"MX/Jog_Bwd_R"
+@export var backward_animation: StringName = &"MX/Jog_Bwd"
+## Degrees away from the facing where each sector starts.
+@export var strafe_angle: float = 55.0
+@export var backward_diagonal_angle: float = 115.0
+@export var backward_angle: float = 160.0
+## Degrees a direction must pass a sector boundary before the clip changes.
+@export var direction_hysteresis: float = 10.0
+
 var _dead: bool = false
 var _action: StringName = &""
+var _queued: StringName = &""
+## Directional sector while strafing: 0 forward, 1 strafe, 2 back diagonal, 3 back.
+var _sector: int = 0
 
 
 func _ready() -> void:
@@ -74,6 +96,15 @@ func _process(_delta: float) -> void:
 	if speed < move_threshold:
 		_play(idle_animation, 1.0)
 		return
+	if body.get(&"is_strafing") == true:
+		var directional := _directional_animation(horizontal)
+		if directional != &"":
+			var reference: float = animation_player.get_animation(directional) \
+				.get_meta(&"reference_speed", run_reference_speed)
+			_play(directional, clampf(speed / reference, min_cycle_rate, max_cycle_rate))
+			return
+	else:
+		_sector = 0
 	var anim := run_animation
 	var reference := run_reference_speed
 	if _uses_walk(speed):
@@ -84,6 +115,42 @@ func _process(_delta: float) -> void:
 	if body.get(&"is_strafing") == true 			and horizontal.normalized().dot(forward) < backwards_threshold:
 		rate = -rate
 	_play(anim, rate)
+
+
+## The strafe / backward clip for moving along `horizontal` relative to the
+## body's facing, or &"" for the forward cycle (or when the clip is missing).
+func _directional_animation(horizontal: Vector3) -> StringName:
+	var forward := -body.global_basis.z
+	var right := body.global_basis.x
+	var angle := rad_to_deg(atan2(horizontal.dot(right), horizontal.dot(forward)))
+	var off := absf(angle)
+	var sector := _sector_for(off)
+	if sector != _sector and (_sector_for(off - direction_hysteresis) == _sector
+			or _sector_for(off + direction_hysteresis) == _sector):
+		sector = _sector  # Near a boundary: keep the current clip.
+	_sector = sector
+	var to_right := angle > 0.0
+	var anim: StringName = &""
+	match sector:
+		1:
+			anim = strafe_right_animation if to_right else strafe_left_animation
+		2:
+			anim = backward_right_animation if to_right else backward_left_animation
+		3:
+			anim = backward_animation
+	if anim != &"" and not animation_player.has_animation(anim):
+		return &""
+	return anim
+
+
+func _sector_for(off: float) -> int:
+	if off < strafe_angle:
+		return 0
+	if off < backward_diagonal_angle:
+		return 1
+	if off < backward_angle:
+		return 2
+	return 3
 
 
 func _uses_walk(speed: float) -> bool:
@@ -100,6 +167,7 @@ func play_action(anim_name: StringName, speed: float = 1.0, from_time: float = 0
 	if _dead:
 		return
 	_action = anim_name
+	_queued = &""
 	if animation_player.current_animation == anim_name:
 		# play() would just continue it (back-to-back attacks); restart.
 		animation_player.seek(from_time, true)
@@ -108,6 +176,14 @@ func play_action(anim_name: StringName, speed: float = 1.0, from_time: float = 0
 		if from_time > 0.0:
 			animation_player.seek(from_time, true)
 	animation_player.speed_scale = speed
+
+
+## Plays `anim_name` straight after the current one-shot ends, at the same
+## speed and without a crossfade (for clips that continue each other's pose,
+## e.g. a swing and its return to guard). Cleared by any new action.
+func queue_action(anim_name: StringName) -> void:
+	if _action != &"":
+		_queued = anim_name
 
 
 ## The one-shot playing now, or &"" during locomotion.
@@ -134,6 +210,7 @@ func is_playing_action() -> bool:
 ## character can move again); locomotion blends back in.
 func stop_action() -> void:
 	_action = &""
+	_queued = &""
 
 
 func _play(anim_name: StringName, speed: float) -> void:
@@ -143,13 +220,20 @@ func _play(anim_name: StringName, speed: float) -> void:
 
 
 func _on_animation_finished(anim_name: StringName) -> void:
-	if anim_name == _action:
-		_action = &""
+	if anim_name != _action:
+		return
+	if _queued != &"" and not _dead:
+		_action = _queued
+		_queued = &""
+		animation_player.play(_action, 0.0)
+		return
+	_action = &""
 
 
 func _on_died() -> void:
 	_dead = true
 	_action = &""
+	_queued = &""
 	# Leave `death_animation` empty when a RagdollComponent handles death.
 	if death_animation != &"":
 		animation_player.speed_scale = 1.0

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Sweep"
+damage = 18
+windup = 0.2
+strike_duration = 0.11
+recovery = 0.95
+animation = &"UAL2/Sword_Regular_B"
+anim_strike_start = 0.2
+anim_strike_end = 0.31
+recovery_animation = &"UAL2/Sword_Regular_B_Rec"
+chain_delay = 0.08
+move_cancel = 0.3
+lunge_distance = 0.35
+lunge_lead = 0.08
+hitstop = 0.055
+camera_shake = 0.24
+knockback = 3.8
+hitstun = 0.34
+stagger = 13.0
+impact_scale = 1.05
+impact_color = Color(1, 0.88, 0.6, 1)
+trail_color = Color(0.85, 0.92, 1, 0.55)

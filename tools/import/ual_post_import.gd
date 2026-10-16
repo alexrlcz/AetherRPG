@@ -1,7 +1,7 @@
 @tool
 extends EditorScenePostImport
-## Post-import script for the Universal Animation Library (UAL1_Standard.glb),
-## imported as an AnimationLibrary.
+## Post-import script for the Universal Animation Library (UAL1_Standard.glb,
+## UAL2_Standard.glb), imported as AnimationLibraries.
 ##
 ## The library's tracks move every bone to the reference mannequin's
 ## proportions. Our bodies (male / female base characters) share its bone

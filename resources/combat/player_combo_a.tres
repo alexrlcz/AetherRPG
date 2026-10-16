@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Rising Slash"
+damage = 16
+windup = 0.26
+strike_duration = 0.11
+recovery = 0.85
+animation = &"UAL2/Sword_Regular_A"
+anim_strike_start = 0.2
+anim_strike_end = 0.31
+recovery_animation = &"UAL2/Sword_Regular_A_Rec"
+chain_delay = 0.06
+move_cancel = 0.28
+lunge_distance = 0.3
+lunge_lead = 0.08
+hitstop = 0.05
+camera_shake = 0.2
+knockback = 3.2
+hitstun = 0.3
+stagger = 11.0
+impact_scale = 1.0
+impact_color = Color(1, 0.88, 0.6, 1)
+trail_color = Color(0.85, 0.9, 1, 0.5)

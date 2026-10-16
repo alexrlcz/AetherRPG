@@ -42,6 +42,12 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 @export var turn_braking: float = 28.0
 ## How quickly the character turns toward its facing direction.
 @export var turn_speed: float = 11.0
+## Speed multipliers while strafing (aiming or locked on), by direction
+## relative to the facing: straight sideways and straight backwards, blended
+## in between; forward (within 45°) is full speed. They keep the body at a
+## pace the strafe / backpedal cycles can match without skating. 1 = off.
+@export var strafe_speed_multiplier: float = 0.6
+@export var backpedal_speed_multiplier: float = 0.55
 @export_group("Combat")
 ## Light attack chain; each light press continues it, a full recovery resets it.
 @export var light_combo: Array[AttackProfile] = []
@@ -138,6 +144,8 @@ func _physics_process(delta: float) -> void:
 	elif move_dir != Vector3.ZERO:
 		facing_direction = move_dir.normalized()
 
+	if is_strafing and move_dir != Vector3.ZERO:
+		move_dir *= _strafe_speed_factor(move_dir)
 	_apply_movement(move_dir, delta)
 	if attacking:
 		var forward := -global_basis.z
@@ -360,6 +368,16 @@ func _apply_movement(move_dir: Vector3, delta: float) -> void:
 		velocity.y = 0.0
 	else:
 		velocity.y -= _gravity * delta
+
+
+## Speed multiplier for moving along `move_dir` while facing `facing_direction`.
+func _strafe_speed_factor(move_dir: Vector3) -> float:
+	var angle := rad_to_deg(facing_direction.angle_to(move_dir.normalized()))
+	if angle <= 45.0:
+		return 1.0
+	if angle <= 90.0:
+		return lerpf(1.0, strafe_speed_multiplier, (angle - 45.0) / 45.0)
+	return lerpf(strafe_speed_multiplier, backpedal_speed_multiplier, (angle - 90.0) / 90.0)
 
 
 func _apply_rotation(delta: float, rate: float) -> void:

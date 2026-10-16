@@ -2,6 +2,8 @@
 
 [ext_resource type="PackedScene" path="res://assets/characters/universal/bodies/Superhero_Male_FullBody.gltf" id="1_model"]
 [ext_resource type="AnimationLibrary" path="res://assets/characters/universal/animations/UAL1_Standard.glb" id="2_anims"]
+[ext_resource type="AnimationLibrary" path="res://assets/characters/universal/animations/UAL2_Standard.glb" id="3_anims"]
+[ext_resource type="AnimationLibrary" path="res://assets/characters/mixamo/mixamo_locomotion.res" id="4_anims"]
 
 [sub_resource type="CapsuleShape3D" id="Capsule_pelvis"]
 radius = 0.15
@@ -263,5 +265,7 @@ bone_name = "hand_r"
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
-&"": ExtResource("2_anims")
+&"": ExtResource("2_anims"),
+&"UAL2": ExtResource("3_anims"),
+&"MX": ExtResource("4_anims")
 }

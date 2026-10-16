@@ -9,6 +9,12 @@ extends Resource
 ##   wind-up   anim_start        -> anim_strike_start  (over `windup` s)
 ##   strike    anim_strike_start -> anim_strike_end    (over `strike_duration` s, hitbox live)
 ##   recovery  anim_strike_end   -> anim_recovery_end  (over `recovery` s)
+## With a `recovery_animation` (swing and return to guard as separate clips,
+## e.g. UAL2 Sword_Regular_A + Sword_Regular_A_Rec), recovery plays the rest
+## of `animation`, then `recovery_animation` up to `anim_recovery_end` (in that
+## clip), together over `recovery` s. A chained attack starts straight from
+## the swing's end pose, so the return-to-guard clip is only seen when the
+## combo stops.
 
 enum Weight { LIGHT, HEAVY }
 
@@ -29,8 +35,11 @@ enum Weight { LIGHT, HEAVY }
 @export var anim_strike_start: float = 0.3
 ## <= anim_strike_start: one playback speed for the whole attack (legacy).
 @export var anim_strike_end: float = 0.0
-## 0 = the animation's full length.
+## 0 = the animation's full length. Seconds into `recovery_animation` when
+## that is set.
 @export var anim_recovery_end: float = 0.0
+## Optional return-to-guard clip played after `animation` ends.
+@export var recovery_animation: StringName = &""
 
 @export_group("Commitment")
 ## Seconds into recovery after which a buffered attack may chain out of it.

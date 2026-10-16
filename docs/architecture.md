@@ -18,7 +18,7 @@
 | `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
 | `lock_on`      | Middle mouse       | Lock onto the nearest visible enemy within 15 m, or release the lock. While locked the character always faces the target and strafes like `aim`; the lock wins over `aim`. |
 | `cycle_target` | Tab                | Next lock target, nearest to farthest, wrapping (locks the nearest if unlocked). |
-| `attack`       | Left mouse (hold to repeat) | Light combo: Slash -> Rising Cut -> Slash... (see Combat feel). |
+| `attack`       | Left mouse (hold to repeat) | Light combo: Rising Slash -> Sweep -> Finisher -> Rising Slash... (see Combat feel). |
 | `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
 | `restart`      | R                  | After death (1 s delay): reload the level. |
@@ -41,8 +41,8 @@ The lock breaks past `break_range` (20 m) or after `lose_sight_time` (1 s)
 out of sight; when the target dies it jumps to the next-nearest enemy or
 releases; player death releases it. The marker (ground ring + pointer above
 the health bar) is built in code and lives in the "vfx" group. The player
-exposes `is_strafing` (aiming or locked), which the animator uses for
-backwards locomotion. Tab is consumed by the player so it doesn't move UI
+exposes `is_strafing` (aiming or locked), which the animator uses to pick
+strafe / backward cycles. Tab is consumed by the player so it doesn't move UI
 focus, but if a UI control already has focus it may take Tab first.
 
 ## Physics layers
@@ -123,20 +123,31 @@ reads it; nothing reacts to an attack merely starting.
 
 ## Combat feel
 
-Player attacks (all from the one `Sword_Attack` clip, which contains two
-slashes: an overhead downward cut at 0.37-0.50 s and a rising backhand at
-0.77-0.90 s):
+Player attacks. The light combo uses UAL2's `Sword_Regular_A/B/C`: each swing
+ends in the pose the next one starts from (measured: < 0.07 m mean bone
+offset), and A and B have separate return-to-guard clips (`_Rec`) that start
+exactly on their swing's last frame and end in the idle pose. A chained swing
+starts straight from the previous swing's end; the `_Rec` clip only plays when
+the combo stops (`AttackProfile.recovery_animation`, queued with
+`CharacterAnimator.queue_action`). Strike windows are where the sword tip moves
+fastest (sampled at 30 fps). The heavy attack still uses UAL1's `Sword_Attack`
+overhead cut.
 
-| Attack | Input | Wind-up | Strike | Recovery | Damage | Notes |
-|---|---|---|---|---|---|---|
-| Slash | light | 0.32 s (anim 0-0.37) | 0.12 s (0.37-0.50) | 0.40 s (0.50-0.77) | 18 | chain after 0.08 s, move-cancel 0.26 s, lunge 0.35 m |
-| Rising Cut | light (chained) | 0.14 s (from current pose to 0.77) | 0.12 s (0.77-0.90) | 0.50 s (0.90-1.40, back to guard) | 22 | chain after 0.28 s, lunge 0.4 m |
-| Cleave | heavy | 0.62 s incl. 0.14 s hold at the top | 0.10 s (0.37-0.50) | 0.55 s (0.50-0.77) | 40 | breaks poise, knockback 7.5, hitstun 0.6 s, hitstop 0.11 s, lunge 0.9 m |
+| Attack | Input | Clip | Wind-up | Strike | Recovery | Damage | Notes |
+|---|---|---|---|---|---|---|---|
+| Rising Slash | light 1 | Sword_Regular_A | 0.26 s (anim 0-0.20) | 0.11 s (0.20-0.31), rising diagonal right -> left | 0.85 s (rest of A + A_Rec) | 16 | chain after 0.06 s, move-cancel 0.28 s, lunge 0.3 m |
+| Sweep | light 2 | Sword_Regular_B | 0.20 s (0-0.20) | 0.11 s (0.20-0.31), horizontal left -> right | 0.95 s (rest of B + B_Rec) | 18 | chain after 0.08 s, lunge 0.35 m |
+| Finisher | light 3 | Sword_Regular_C | 0.50 s (0-0.57) | 0.14 s (0.57-0.75), big diagonal cut | 1.0 s (0.75-2.0, back to guard) | 30 | chain after 0.35 s, knockback 5.5, stagger 22, lunge 0.6 m |
+| Cleave | heavy | Sword_Attack | 0.62 s incl. 0.14 s hold at the top | 0.10 s (0.37-0.50) | 0.55 s (0.50-0.77) | 40 | breaks poise, knockback 7.5, hitstun 0.6 s, hitstop 0.11 s, lunge 0.9 m |
 
 - Combo order lives on the player (`light_combo`, `heavy_attack`,
-  `light_after_heavy`): profiles never reference each other (cyclic
-  resources don't load reliably). Light -> light, light -> heavy and
-  heavy -> Rising Cut all chain.
+  `light_after_heavy` = 0): profiles never reference each other (cyclic
+  resources don't load reliably). Light -> light -> light, light -> heavy and
+  heavy -> Rising Slash all chain; after the Finisher the combo wraps to A.
+- The Finisher's wind-up includes a fast low pass of the sword in front of
+  the player (C at 0.05-0.20 s) that does not deal damage; only the big
+  diagonal cut does. `player_slash.tres` / `player_rising_cut.tres` (the old
+  `Sword_Attack` combo) are no longer used.
 - Commitment: attacking stops the player dead; it turns toward the cursor at
   `attack_turn_speed` during the wind-up only, then facing locks. The only
   movement is the lunge (stops once the attack connects), and movement input
@@ -151,7 +162,7 @@ slashes: an overhead downward cut at 0.37-0.50 s and a rising backhand at
     hits only flinch (half lean, 20% knockback) until their `stagger` adds up
     past `poise` (enemy 30 from `EnemyStats.poise`, player 20); then they
     stagger and cancel the attack. Recovery is never armoured. Poise damage
-    resets 2 s after the last hit. A light Slash (12) needs 3 hits to break an
+    resets 2 s after the last hit. A Rising Slash (11) needs 3 hits to break an
     attacking enemy; Cleave (40) breaks it at once.
   - hits without a profile (hazards) only flinch; lethal hits are left to the
     ragdoll, which flings along the killing hit scaled by `ragdoll_force`.
@@ -223,17 +234,34 @@ slashes: an overhead downward cut at 0.37-0.50 s and a rising backhand at
 
 - Models: Quaternius "Universal Base Characters" + "Universal Animation
   Library" (CC0, licences in `assets/characters/universal/`). Male and female
-  bodies, hairstyles, beard, eyebrows and the 43 animations all share one
+  bodies, hairstyles, beard, eyebrows and the animations (UAL1: 43, UAL2: 43,
+  verified to share the same 65 bones and rest pose) all share one
   65-bone UE-mannequin-style skeleton (`pelvis`, `spine_01..03`, `hand_r`, ...),
   ~1.82 m tall, metre units, facing +Z.
-- `UAL1_Standard.glb` (no root motion) is imported as an **AnimationLibrary**
-  (`importer="animation_library"`). Its post-import script
+- `UAL1_Standard.glb` and `UAL2_Standard.glb` (the no-root-motion versions;
+  the `_RM` files were not imported) are each imported as an **AnimationLibrary**
+  with the same settings. The rig's AnimationPlayer has UAL1 as the default
+  library (`Idle`, `Sword_Attack`) and UAL2 as `UAL2` (`UAL2/Sword_Regular_A`).
+  (`importer="animation_library"`). The shared post-import script
   `tools/import/ual_post_import.gd` removes position tracks except `root` and
   `pelvis`, and all scale tracks: the animations were authored on a mannequin
   with different bone lengths, so only rotations are applied and each body
   keeps its own proportions. `remove_immutable_tracks` is off so constant
   rotation tracks are kept. Godot strips the `_Loop` suffix on import
   (`Idle_Loop` -> `Idle`, `Jog_Fwd_Loop` -> `Jog_Fwd`).
+- Mixamo locomotion (strafe left/right, jog backward, jog backward
+  diagonals) is retargeted onto this skeleton by
+  `tools/build_mixamo_library.gd` into
+  `assets/characters/mixamo/mixamo_locomotion.res` (the rig's `MX` library).
+  The source FBX files ("Without Skin", 65-bone `mixamorig_` skeleton) are
+  read at build time from outside the project (`D:/AetherRPG/MIXAMO
+  Animations`, or a path passed after `--`), so the raw Mixamo files are
+  not in the repo. Both skeletons rest in a T-pose facing +Z, so each bone
+  gets the source's world-space rotation delta from rest. The hips keep only
+  their bob and sway, scaled to the mannequin hip height (×0.88), with the
+  clip's travel removed. The travel speed is stored as `reference_speed`
+  metadata. Rebuild the library, then the rig, after changing the sources:
+  `godot --headless --path . -s res://tools/build_mixamo_library.gd`.
 - `scenes/characters/humanoid_rig.tscn` = the male body glTF + ragdoll +
   `RightHand` attachment (bone `hand_r`) + `AnimationPlayer` with the library.
   It is **generated** by `tools/build_humanoid_rig.gd` (bone table at the top);
@@ -263,13 +291,18 @@ slashes: an overhead downward cut at 0.37-0.50 s and a rising backhand at
   player and enemies. It observes the body's velocity and its HealthComponent:
   idle (`Sword_Idle`) / walk (`Walk`, below `walk_to_run_speed` 2.6 m/s, with
   hysteresis) / run (`Jog_Fwd`, rate = speed / 5.36 m/s), cycle rate clamped to
-  0.6–1.6x, 0.25 s locomotion crossfades. The cycle plays reversed when moving
-  against the facing direction, but only while the body's `is_aiming` is true
-  (so momentum during a quick turn doesn't moonwalk). Gameplay calls
+  0.6–1.6x, 0.25 s locomotion crossfades. While the body's `is_strafing` is
+  true (aiming or locked on) the cycle is picked from the movement direction
+  relative to the facing: forward < 55° (walk/run), strafe 55–115°
+  (`MX/Strafe_L/R`), backward diagonal 115–160° (`MX/Jog_Bwd_L/R`), backward
+  (`MX/Jog_Bwd`), with 10° hysteresis at the boundaries. Their rate uses each
+  clip's `reference_speed` metadata. If a directional clip is missing, the
+  forward cycle plays reversed instead (old behaviour). Gameplay calls
   `play_action(anim, speed)` for one-shots such as attacks (restarting it if
   it is already playing); `MeleeAttackComponent` calls `stop_action()` when
-  recovery ends so the follow-through doesn't block locomotion. Both attacks
-  use `Sword_Attack` (blow lands at 0.37 s). `death_animation` is empty
+  recovery ends so the follow-through doesn't block locomotion, and
+  `queue_action(anim)` to play a continuation clip (a swing's `_Rec`) straight
+  after the current one-shot without a crossfade. `death_animation` is empty
   because the ragdoll handles death.
 - Old knight assets (`assets/characters/knight/`, `knight_rig.tscn`,
   `build_knight_rig.gd`, `knight_post_import.gd`, `RagdollLimbFollow`) are
@@ -343,6 +376,11 @@ slashes: an overhead downward cut at 0.37-0.50 s and a rising backhand at
   28), and with no input it slows at `deceleration` 30. Roughly 0.4 s to full
   speed, 0.2 s to stop, short arcs on direction changes. Tunables are in the
   "Movement Feel" export group.
+- While strafing (aiming or locked on), sideways and backward movement is
+  slower: `strafe_speed_multiplier` 0.6 at 90° from the facing,
+  `backpedal_speed_multiplier` 0.55 at 180°, blended in between, full speed
+  within 45° of the facing. The Mixamo strafe/backpedal cycles naturally move
+  at 2.1–2.65 m/s; at full speed (6 m/s) they would skate. 1 = off.
 
 ## Levels
 
@@ -396,6 +434,8 @@ tools/build_humanoid_rig.gd          Generates humanoid_rig.tscn
 tools/build_dungeon.gd               Generates dungeon_01.tscn + its navmesh
 assets/maps/                         Dungeon Scrawl source maps (.ds) and previews
 tools/import/ual_post_import.gd      Strips per-bone position tracks from the animation library
+tools/build_mixamo_library.gd        Retargets Mixamo FBX locomotion onto the Universal skeleton
+assets/characters/mixamo/            mixamo_locomotion.res (generated; rig library "MX")
 assets/characters/universal/         Base character bodies, hair parts, animation library (CC0)
 resources/characters/                CharacterAppearance .tres files
 (unused)                             knight_rig.tscn, build_knight_rig.gd, knight_post_import.gd, assets/characters/knight/
@@ -410,7 +450,7 @@ scripts/components/                  health, hitbox, hurtbox, melee attack, hit 
 scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop
 scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
 scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
-resources/combat/                    Player AttackProfiles (slash, rising cut, cleave)
+resources/combat/                    Player AttackProfiles (combo A/B/C, cleave; slash and rising cut unused)
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
 tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd

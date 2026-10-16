@@ -7,8 +7,10 @@ extends SceneTree
 const PLAYER := preload("res://scenes/player/player.tscn")
 const ENEMY := preload("res://scenes/enemies/enemy_knight.tscn")
 const CAMERA := preload("res://scenes/camera/iso_camera_rig.tscn")
-const SLASH := preload("res://resources/combat/player_slash.tres")
-const RISING := preload("res://resources/combat/player_rising_cut.tres")
+## The player's light combo: A -> B -> C (UAL2 Sword_Regular_A/B/C).
+const SLASH := preload("res://resources/combat/player_combo_a.tres")
+const RISING := preload("res://resources/combat/player_combo_b.tres")
+const FINISHER := preload("res://resources/combat/player_combo_c.tres")
 const CLEAVE := preload("res://resources/combat/player_cleave.tres")
 
 var failures: int = 0
@@ -34,6 +36,7 @@ func _initialize() -> void:
 	await test_death_interrupts()
 	await test_multiple_targets()
 	await test_combo_and_buffer()
+	await test_full_combo_connects()
 	await test_commitment()
 	await test_player_reaction()
 	check(is_equal_approx(Engine.time_scale, 1.0), "time scale restored at the end")
@@ -103,7 +106,8 @@ func test_valid_hit() -> void:
 	check(knock_at_hit.z < -1.0, "knockback pushes the enemy away (%.2f m/s)" % -knock_at_hit.z)
 	check(hits.contact_offsets[0] <= enemy.hurtbox.get_body_radius() + 0.05,
 		"contact point is on the enemy's body (%.2f m from its axis)" % hits.contact_offsets[0])
-	check(event.swing_direction.y < -0.3, "overhead slash moves downward at contact")
+	check(event.swing_direction.x < -0.3 and event.swing_direction.y > 0.1,
+		"rising slash moves right-to-left and upward at contact (%s)" % event.swing_direction)
 	check(watch.feedback.hits_handled == 1, "feedback ran once")
 	check(count_effects() >= 1 or watch.effects_seen, "impact effect spawned")
 	await ticks(30)
@@ -118,16 +122,17 @@ func test_sweep_frame_rates() -> void:
 		Engine.physics_ticks_per_second = rate
 		await make_arena()
 		var player := spawn_player(Vector3.ZERO)
-		# Thin targets: one where the blade comes down, one at the end of the arc.
+		# Thin targets: one where the rising slash enters (front right), one
+		# straight ahead.
 		var front := spawn_dummy(Vector3(0.0, 0, -1.25), 0.2)
-		var left := spawn_dummy(Vector3(-0.75, 0, -1.15), 0.2)
+		var left := spawn_dummy(Vector3(0.65, 0, -0.95), 0.2)
 		await ticks(5)
 		player.request_attack(false)
 		await ticks(2)
 		while player.melee.is_busy():
 			await physics_frame
 		check(front.current_health < 100 and left.current_health < 100,
-			"%d Hz: both thin targets hit (front %d, left %d)" % [rate, front.current_health, left.current_health])
+			"%d Hz: both thin targets hit (front %d, right %d)" % [rate, front.current_health, left.current_health])
 		check(front.current_health == 100 - SLASH.damage and left.current_health == 100 - SLASH.damage,
 			"%d Hz: each hit exactly once" % rate)
 		await clear_arena()
@@ -253,7 +258,7 @@ func test_multiple_targets() -> void:
 	await make_arena()
 	var player := spawn_player(Vector3.ZERO)
 	var a := spawn_enemy(Vector3(0.05, 0, -1.3), true)
-	var b := spawn_enemy(Vector3(-1.2, 0, -0.75), true)
+	var b := spawn_enemy(Vector3(1.1, 0, -0.7), true)  # where the slash enters
 	await ticks(5)
 	var hits_a := HitLog.new(a)
 	var hits_b := HitLog.new(b)
@@ -285,12 +290,17 @@ func test_combo_and_buffer() -> void:
 			await physics_frame
 			recovery_ticks += 1
 		var chain_time: float = float(recovery_ticks) / rate
-		check(melee.current == RISING, "light -> light chains into Rising Cut")
+		check(melee.current == RISING, "light -> light chains into the second swing")
 		check(absf(chain_time - SLASH.chain_delay) <= 2.0 / rate + 0.001,
 			"chained %.3f s into recovery (chain_delay %.2f)" % [chain_time, SLASH.chain_delay])
-		check(melee.animator.get_action_position() > SLASH.anim_strike_end,
-			"animation carried on from the slash's follow-through (%.2f)" % melee.animator.get_action_position())
-		# Heavy out of the second hit's recovery.
+		check(melee.animator.current_action() == RISING.animation,
+			"second swing plays its own clip (%s)" % melee.animator.current_action())
+		# Third press chains into the finisher.
+		await wait_until(func() -> bool: return melee.phase == MeleeAttackComponent.Phase.RECOVERY, 120)
+		player.request_attack(false)
+		await wait_until(func() -> bool: return melee.current == FINISHER, 120)
+		check(melee.current == FINISHER, "light -> light -> light chains into the finisher")
+		# Heavy out of the finisher's recovery.
 		await wait_until(func() -> bool: return melee.phase == MeleeAttackComponent.Phase.RECOVERY, 120)
 		player.request_attack(true)
 		await wait_until(func() -> bool: return melee.current == CLEAVE, 120)
@@ -307,8 +317,42 @@ func test_combo_and_buffer() -> void:
 			await physics_frame
 			second_started = second_started or melee.is_busy()
 		check(not second_started, "early press expired, no automatic follow-up")
+		# Without a follow-up the swing plays into its return-to-guard clip.
+		if rate == 60:
+			player.request_attack(false)
+			await wait_until(func() -> bool: return melee.phase == MeleeAttackComponent.Phase.RECOVERY, 120)
+			var saw_recovery_clip := false
+			while melee.is_busy():
+				saw_recovery_clip = saw_recovery_clip \
+					or melee.animator.current_action() == SLASH.recovery_animation
+				await physics_frame
+			check(saw_recovery_clip, "unchained swing plays %s" % SLASH.recovery_animation)
 		await clear_arena()
 	Engine.physics_ticks_per_second = 60
+
+
+func test_full_combo_connects() -> void:
+	print("10c. Every swing of the A -> B -> C combo lands on an enemy in front")
+	await make_arena()
+	var player := spawn_player(Vector3.ZERO)
+	var enemy := spawn_enemy(Vector3(0, 0, -1.3), true)
+	enemy.health.max_health = 1000
+	enemy.health.reset()
+	await ticks(5)
+	var hits := HitLog.new(enemy)
+	var landed: Array[AttackProfile] = []
+	enemy.hurtbox.hit_received.connect(func(event: HitEvent) -> void: landed.append(event.profile))
+	for profile: AttackProfile in [SLASH, RISING, FINISHER]:
+		player.request_attack(false)
+		await wait_until(func() -> bool:
+			return player.melee.current == profile \
+				and player.melee.phase == MeleeAttackComponent.Phase.RECOVERY, 200)
+	await wait_until(func() -> bool: return not player.melee.is_busy(), 300)
+	var expected: Array[AttackProfile] = [SLASH, RISING, FINISHER]
+	check(landed == expected,
+		"A, B and C each hit once (%s)" % [landed.map(func(p: AttackProfile) -> String: return p.display_name)])
+	check(hits.events.size() == 3, "three hits total")
+	await clear_arena()
 
 
 func test_commitment() -> void:

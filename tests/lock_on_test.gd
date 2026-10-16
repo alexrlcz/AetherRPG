@@ -12,6 +12,7 @@ func _initialize() -> void:
 	await test_attack_direction()
 	await test_target_death()
 	await test_lock_breaks()
+	await test_directional_locomotion()
 	print("FAILURES: %d" % failures)
 	quit(1 if failures > 0 else 0)
 
@@ -159,6 +160,51 @@ func test_lock_breaks() -> void:
 	player.health.take_damage(100000)
 	await ticks(2)
 	check(not player.lock_on.is_locked(), "player death releases the lock")
+	await clear_arena()
+
+
+func test_directional_locomotion() -> void:
+	print("6. Locked-on movement plays strafe / backward clips at reduced speed")
+	await make_arena()
+	var player := spawn_player(Vector3.ZERO)
+	# Target straight up the screen, so WASD moves at 0 / 90 / 180 degrees
+	# off the facing (the iso camera is rotated against the world axes).
+	var up_screen := -camera_rig.camera.global_basis.z
+	up_screen.y = 0.0
+	var enemy := spawn_enemy(up_screen.normalized() * 9.0, true)
+	await ticks(3)
+	player.lock_on.toggle()
+	await ticks(20)
+	var ap: AnimationPlayer = player.get_node("Visual/Model/AnimationPlayer")
+	for action in ["move_forward", "move_left", "move_right", "move_back"]:
+		Input.action_press(action)
+		await ticks(45)
+		var v := Vector3(player.velocity.x, 0, player.velocity.z)
+		var forward := -player.global_basis.z
+		var angle := rad_to_deg(atan2(v.dot(player.global_basis.x), v.dot(forward)))
+		var anim := ap.current_animation
+		var expected := ""
+		if absf(angle) < 55.0:
+			expected = "Jog_Fwd"
+		elif absf(angle) < 115.0:
+			expected = "MX/Strafe_R" if angle > 0.0 else "MX/Strafe_L"
+		elif absf(angle) < 160.0:
+			expected = "MX/Jog_Bwd_R" if angle > 0.0 else "MX/Jog_Bwd_L"
+		else:
+			expected = "MX/Jog_Bwd"
+		check(anim == expected, "%s: moving %.0f° off facing plays %s (got %s)" % [action, angle, expected, anim])
+		if absf(angle) > 60.0:
+			check(v.length() < player.move_speed * 0.7,
+				"%s: slower than full speed (%.2f m/s)" % [action, v.length()])
+		Input.action_release(action)
+		await ticks(20)
+	check(_facing_dot(player, enemy) > 0.95, "kept facing the target throughout")
+	player.lock_on.release()
+	Input.action_press("move_back")
+	await ticks(45)
+	check(ap.current_animation == "Jog_Fwd", "unlocked: moving plays the forward cycle (%s)" % ap.current_animation)
+	check(player.velocity.length() > player.move_speed * 0.9, "unlocked: full speed")
+	Input.action_release("move_back")
 	await clear_arena()
 
 

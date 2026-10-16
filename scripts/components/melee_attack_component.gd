@@ -183,8 +183,9 @@ func _physics_process(delta: float) -> void:
 				_enter(Phase.RECOVERY)
 				hitbox.close_after_current_pose()
 				if current.uses_segments():
-					_set_speed(_segment_speed(current.anim_strike_end,
-						_recovery_end_time(), current.recovery))
+					_set_speed(_segment_speed(0.0, _recovery_span(), current.recovery))
+					if animator and current.recovery_animation != &"":
+						animator.queue_action(current.recovery_animation)
 				strike_ended.emit(current)
 		Phase.RECOVERY:
 			if phase_time >= current.recovery:
@@ -225,12 +226,24 @@ static func _segment_speed(from: float, to: float, duration: float) -> float:
 	return (to - from) / duration
 
 
-func _recovery_end_time() -> float:
-	if current.anim_recovery_end > current.anim_strike_end:
-		return current.anim_recovery_end
-	var anim_player := animator.animation_player
-	if anim_player and anim_player.has_animation(current.animation):
-		return anim_player.get_animation(current.animation).length
+## Animation seconds played during recovery: the rest of the swing (up to
+## anim_recovery_end), or the rest of the swing clip plus the recovery clip.
+func _recovery_span() -> float:
+	var swing_end := _clip_length(current.animation)
+	if current.recovery_animation == &"":
+		if current.anim_recovery_end > current.anim_strike_end:
+			swing_end = current.anim_recovery_end
+		return maxf(swing_end - current.anim_strike_end, 0.0)
+	var rec_end := current.anim_recovery_end
+	if rec_end <= 0.0:
+		rec_end = _clip_length(current.recovery_animation)
+	return maxf(swing_end - current.anim_strike_end, 0.0) + rec_end
+
+
+func _clip_length(anim_name: StringName) -> float:
+	var anim_player := animator.animation_player if animator else null
+	if anim_player and anim_player.has_animation(anim_name):
+		return anim_player.get_animation(anim_name).length
 	return current.anim_strike_end
 
 
