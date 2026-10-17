@@ -20,10 +20,13 @@
 | `cycle_target` | Tab                | Next lock target, nearest to farthest, wrapping (locks the nearest if unlocked). |
 | `attack`       | Left mouse (hold to repeat) | Light combo: Rising Slash -> Sweep -> Finisher -> Rising Slash... (see Combat feel). |
 | `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
-| `dodge`        | Space              | Dodge roll toward the WASD direction (toward the cursor if none held), with i-frames (see Dodge roll). |
+| `dodge`        | Left Shift         | Dodge roll toward the WASD direction (toward the cursor if none held), with i-frames (see Dodge roll). |
+| `jump`         | Space              | Jump (see Player movement feel). |
+| `sprint` (hold) | Left Alt          | Sprint at 8 m/s; faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
+| `walk_toggle`  | Left Ctrl          | Toggle walking (1.6 m/s, `Walk_Formal` cycle). |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
 | `restart`      | R                  | After death (1 s delay): reload the level. |
-| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only). |
+| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, player appearance and **player weapon** (Sword / Greatsword). |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
 
 Attack presses are handled as input events (`_unhandled_input`), so clicks on
@@ -116,9 +119,10 @@ reads it; nothing reacts to an attack merely starting.
   markers, chain/move-cancel windows, lunge, and impact data (hitstop, camera
   shake, knockback, hitstun, poise damage `stagger`, ragdoll force, effect size
   and colour, trail colour).
-- Player `AttackHitbox` (masks `enemy_hurtbox`, `sweep` on) is a
-  0.25 x 0.3 x 0.9 m box along the blade under the `RightHand` bone
-  attachment: only the swinging blade hits.
+- Player `AttackHitbox` (masks `enemy_hurtbox`, `sweep` on) is a box along
+  the blade under the `RightHand` bone attachment, sized and placed by the
+  equipped weapon (sword: 0.25 x 0.3 x 0.9 m; see Weapons): only the
+  swinging blade hits.
 - `CharacterAnimator` runs its AnimationPlayer on **physics ticks**
   (`callback_mode_process = PHYSICS`), in lockstep with the attack phase
   timers and the blade sweep. On render frames they drift apart at low frame
@@ -142,12 +146,14 @@ overhead cut.
 | Rising Slash | light 1 | Sword_Regular_A | 0.26 s (anim 0-0.20) | 0.11 s (0.20-0.31), rising diagonal right -> left | 0.85 s (rest of A + A_Rec) | 16 | chain after 0.06 s, move-cancel 0.28 s, lunge 0.3 m |
 | Sweep | light 2 | Sword_Regular_B | 0.20 s (0-0.20) | 0.11 s (0.20-0.31), horizontal left -> right | 0.95 s (rest of B + B_Rec) | 18 | chain after 0.08 s, lunge 0.35 m |
 | Finisher | light 3 | Sword_Regular_C | 0.50 s (0-0.57) | 0.14 s (0.57-0.75), big diagonal cut | 1.0 s (0.75-2.0, back to guard) | 30 | chain after 0.35 s, knockback 5.5, stagger 22, lunge 0.6 m |
-| Cleave | heavy | Sword_Attack | 0.62 s incl. 0.14 s hold at the top | 0.10 s (0.37-0.50) | 0.55 s (0.50-0.77) | 40 | breaks poise, knockback 7.5, hitstun 0.6 s, hitstop 0.11 s, lunge 0.9 m |
+| Cleave | heavy | Sword_Attack | 0.62 s incl. 0.14 s hold at the top | 0.10 s (0.37-0.50) | 0.55 s (0.50-0.77) | 40 | breaks poise, **knockdown**, knockback 7.5, hitstop 0.11 s, lunge 0.9 m |
+| Dash Strike | light while sprinting | UAL2/Sword_Dash | 0.25 s (0-0.27) | 0.13 s (0.27-0.40) | 0.6 s (0.40-1.50) | 25 | heavy weight, lunge 3.0 m (lead 0.2 s), knockback 6, stagger 30; next light = Sweep |
 
 - Combo order lives on the player (`light_combo`, `heavy_attack`,
   `light_after_heavy` = 0): profiles never reference each other (cyclic
   resources don't load reliably). Light -> light -> light, light -> heavy and
   heavy -> Rising Slash all chain; after the Finisher the combo wraps to A.
+  The Finisher and the Cleave have `knockdown` set (see the knockdown below).
 - The Finisher's wind-up includes a fast low pass of the sword in front of
   the player (C at 0.05-0.20 s) that does not deal damage; only the big
   diagonal cut does. `player_slash.tres` / `player_rising_cut.tres` (the old
@@ -168,6 +174,17 @@ overhead cut.
     stagger and cancel the attack. Recovery is never armoured. Poise damage
     resets 2 s after the last hit. A Rising Slash (11) needs 3 hits to break an
     attacking enemy; Cleave (40) breaks it at once.
+  - knockdown: a staggering hit whose profile has `knockdown` plays
+    `UAL2/Hit_Knockback` (0.83 s, falls on its back) then
+    `UAL2/LayToIdle` (`get_up_speed` 1.3x, ~1.18 s), queued without a
+    crossfade: the first ends in exactly the pose the second starts from.
+    The whole sequence (`knockdown_duration()`, ~2.0 s) is the hitstun;
+    `is_knocked_down()` is true throughout. The owner turns the victim to
+    face the attacker so it falls away from the blow. Hits while down deal
+    damage but don't restart or extend it. The player's reaction has
+    `knockdown_invulnerable` (hurtbox ignores hits until up; set after
+    `staggered` so the dodge cancel can't clear it); enemies can be hit
+    while down. Knockdown sources: player Cleave and Finisher, enemy dash.
   - hits without a profile (hazards) only flinch; lethal hits are left to the
     ragdoll, which flings along the killing hit scaled by `ragdoll_force`.
 - `Hitstop` (`scripts/combat/hitstop.gd`, node in `main.tscn`, group
@@ -253,14 +270,19 @@ overhead cut.
   keeps its own proportions. `remove_immutable_tracks` is off so constant
   rotation tracks are kept. Godot strips the `_Loop` suffix on import
   (`Idle_Loop` -> `Idle`, `Jog_Fwd_Loop` -> `Jog_Fwd`).
-- Mixamo locomotion (jog forward diagonals, strafe left/right, jog backward,
-  jog backward diagonals) is retargeted onto this skeleton by
-  `tools/build_mixamo_library.gd` into
-  `assets/characters/mixamo/mixamo_locomotion.res` (the rig's `MX` library).
-  The source FBX files ("Without Skin", 65-bone `mixamorig_` skeleton) are
-  read at build time from outside the project (`D:/AetherRPG/MIXAMO
-  Animations`, or a path passed after `--`), so the raw Mixamo files are
-  not in the repo. Both skeletons rest in a T-pose facing +Z, so each bone
+- Mixamo clips are retargeted onto this skeleton by
+  `tools/build_mixamo_library.gd` into two libraries: locomotion (jog
+  forward diagonals, strafe left/right, jog backward, jog backward
+  diagonals) in `assets/characters/mixamo/mixamo_locomotion.res` (the rig's
+  `MX` library) and all 48 greatsword clips in
+  `assets/characters/mixamo/mixamo_greatsword.res` (`GS`: locomotion, turns,
+  jumps, attacks, impacts, deaths, block, crouch, draw, power-up, casting;
+  names in the builder's `CLIPS_GS`). The source FBX files (65-bone
+  `mixamorig_` skeleton) are read at build time from outside the project
+  (`E:/GODOT/Aether/mixamo animations`, or a path passed after `--`), so the
+  raw Mixamo files are not in the repo. Per-clip options: `loop` (false for
+  one-shots), `root_motion` (forward travel extracted into a curve, see
+  Weapons) and `no_rise` (in-place jumps keep their crouch but never rise). Both skeletons rest in a T-pose facing +Z, so each bone
   gets the source's world-space rotation delta from rest. The hips keep only
   their bob and sway, scaled to the mannequin hip height (×0.88), with the
   clip's travel removed. The travel speed is stored as `reference_speed`
@@ -310,12 +332,114 @@ overhead cut.
   `play_action(anim, speed)` for one-shots such as attacks (restarting it if
   it is already playing); `MeleeAttackComponent` calls `stop_action()` when
   recovery ends so the follow-through doesn't block locomotion, and
-  `queue_action(anim)` to play a continuation clip (a swing's `_Rec`) straight
-  after the current one-shot without a crossfade. `death_animation` is empty
-  because the ragdoll handles death.
+  `queue_action(anim, speed)` to play a continuation clip (a swing's `_Rec`,
+  the knockdown's get-up) straight after the current one-shot without a
+  crossfade. `death_animation` is empty because the ragdoll handles death.
+- Sprint / formal walk: above `run_to_sprint_speed` 7.0 m/s (±0.3 hysteresis)
+  the cycle is `Sprint` (rate = speed / 7.06 m/s, its stride measured against
+  `Jog_Fwd`'s). While the body's `is_walking` is true the walk cycle is
+  `Walk_Formal` (same stride and timing as `Walk`).
+- Jump / air / landing are automatic from `is_on_floor()`: leaving the floor
+  moving up faster than 1 m/s plays `Jump_Start` (from 0.1 s, past the
+  crouch, at 1.5x); after it ends, or when falling for more than
+  `min_air_time` 0.12 s, the `Jump` loop plays (legs hanging). Touching down
+  after that plays `Jump_Land` from its contact frame (0.05 s, 1.4x); moving
+  cuts it short after `land_cancel_time` 0.15 s. A flat 1 m jump lands
+  before `Jump_Start` ends, so the `Jump` loop is only seen on long falls.
+- Idle variants (player only, `idle_variants` on its Animator): after
+  `idle_variant_delay` 8 s standing still and not strafing, a random variant
+  (never the same twice in a row) loops for whole cycles of at least
+  `idle_variant_min_duration` 4 s, then `Sword_Idle` returns and the delay
+  restarts. Moving, any one-shot, aiming or lock-on cancels it. Variants:
+  `Idle`, `Idle_Talking`, `Idle_Torch`, and UAL2 `Idle_FoldArms`,
+  `Idle_Lantern`, `Idle_No`, `Idle_Rail`, `Idle_Rail_Call`, `Idle_Shield`,
+  `Idle_TalkingPhone`. The prop idles (torch, lantern, shield, phone, rail)
+  are played with the sword in hand; nobody holds those props yet.
 - Old knight assets (`assets/characters/knight/`, `knight_rig.tscn`,
   `build_knight_rig.gd`, `knight_post_import.gd`, `RagdollLimbFollow`) are
   no longer used; kept until the new characters are confirmed.
+
+## Weapons
+
+- `WeaponDefinition` (`scripts/combat/weapon_definition.gd`, one `.tres`
+  per weapon in `resources/weapons/`): model + placement, hitbox box and
+  placement, trail ends (all in the `RightHand` attachment's space), player
+  attacks (`light_combo`, `heavy_attack`, `dash_attack` / `dash_heavy_attack`
+  for light / heavy at sprint speed, `light_after_heavy`), enemy attacks
+  (`enemy_attack` + range, `enemy_dash_attack` + ranges) and three override
+  dictionaries applied while wielded: `animator_overrides`
+  (CharacterAnimator: animation set), `reaction_overrides`
+  (HitReactionComponent: hit clips) and `character_overrides` (the body,
+  e.g. the player's speeds).
+- `WeaponComponent` (`scripts/combat/weapon_component.gd`, node `Weapon`,
+  last child of the player and the knight): `equip(weapon)` restores the
+  previous weapon's overridden properties, swaps the model under
+  `RightHand` (`WeaponModel`), gives the hitbox's CollisionShape3D a new box
+  (`HitboxComponent.refresh_shapes()`), moves the trail ends, applies the
+  overrides and emits `equipped`. The controllers take their attacks from
+  it (`_on_weapon_equipped()`, an attack in progress is cancelled) and the
+  occlusion silhouette refreshes. `random_weapons` picks one on ready;
+  `ignored_overrides` lets a character skip some (knights skip
+  `idle_variants`).
+- Player: starts with the sword; the debug menu (F1) swaps Sword /
+  Greatsword (`DebugMenu.player_weapons`, `equip_player_weapon()`).
+  Knights: club or greatsword at random.
+- `sword.tres` (player): `Sword.fbx`, the A -> B -> C combo, Cleave, Dash
+  Strike; no overrides (the scene defaults are the sword set).
+  `club.tres` (knights): `Club.fbx`, club swing (1.7 m), knight dash (3–5 m).
+- `greatsword.tres`: `assets/equipment/Claymore.fbx` (Quaternius Medieval
+  Weapons, CC0, `LICENSE_medieval_weapons.txt`), scale 0.26 → 1.35 m long,
+  1.08 m blade (fists are 0.27 m apart in the clips, so both fit on the
+  grip). Right fist just under the cross guard, flat facing the palm.
+  Blade direction in `hand_r` space: (0, -0.205, 0.979), close to the hand's
+  forward axis. The line between the two fists would be the natural
+  handle, but the Mixamo left hand isn't constrained to it, and following
+  it (the first version) drove the tip into the floor in the Downward
+  Cleave (-0.21 m), Flurry and Whirlwind (-0.58 m) and held the idle sword
+  far out to the side. The chosen axis keeps the tip at least 0.2 m above
+  the floor in every greatsword clip (checked by `tests/weapon_test.gd`,
+  every attack > 0.1 m) at the cost of the left hand sitting further off
+  the handle (~48° average fist mismatch vs 22°). Hitbox 0.3 x 1.1 x 0.25 m
+  along the blade.
+- Greatsword animation set (`animator_overrides`): idle `GS/Idle`
+  (variants `GS/Idle_2..5`), walk `GS/Walk` (0.97 m/s), run `GS/Run`
+  (3.84 m/s, also used for sprint: `sprint_animation` empty), strafe
+  `GS/Strafe_L/R`, backward and backward diagonals `GS/Run_Bwd`, forward
+  diagonals fall back to the run, no formal walk. Jump `GS/Jump` from its
+  take-off (0.15 s) at 0.66x, so its contact frame (0.62 s) meets the 0.7 s
+  arc's landing; landing = the same clip from 0.62 s; at run speed
+  `GS/Jump_Run` (`run_jump_animation`, from 0.08 s). Hit reactions
+  `GS/Impact_2` (light) / `GS/Impact` (heavy); knockdown stays UAL.
+  Player speeds: run 5 m/s, sprint 6.5, walk 1.2 (the clips are slower than
+  the sword set's).
+- Greatsword strike windows were measured from the blade tip's speed and
+  position (fast and in front of the body), not guessed:
+
+| Attack | Input | Clip | Wind-up | Strike | Recovery | Damage | Notes |
+|---|---|---|---|---|---|---|---|
+| Downward Cleave | light 1 | GS/Slash | 0.45 s (0-0.57) | 0.18 s (0.57-0.80) | 0.55 s (to 1.27) | 24 | lunge 0.4 m |
+| Rising Sweep | light 2 | GS/Slash_3 | 0.55 s (0-0.80) | 0.18 s (0.80-1.03) | 0.6 s (to 1.83) | 26 | lunge 0.4 m |
+| Flurry I | light 3 | GS/Slash_2 | 0.55 s (0-0.80) | 0.16 s (0.80-1.03) | 0.35 s (to 1.30) | 18 | root motion, chain after 0.08 s |
+| Flurry II | light 4 | GS/Slash_2 | 0.25 s (1.30-1.66) | 0.14 s (1.66-1.86) | 0.35 s (to 2.30) | 18 | continues the clip |
+| Flurry III | light 5 | GS/Slash_2 | 0.2 s (2.30-2.55) | 0.15 s (2.55-2.72) | 0.75 s (to 3.53) | 30 | **knockdown** |
+| Whirlwind | heavy | GS/Spin_Attack | 0.3 s | 1.0 s (0.30-1.30, each target once) | 0.5 s | 38 | root motion 2.1 m, **knockdown** |
+| Slide Strike | light while sprinting | GS/Slide_Attack | 0.9 s (0-1.20, slides) | 0.17 s (1.20-1.43) | 0.6 s | 28 | root motion 3.1 m; reaches 4.5 m |
+| Leaping Slam | heavy while sprinting | GS/Jump_Attack | 0.75 s (0-1.03, leaps) | 0.2 s (1.03-1.27) | 0.75 s | 40 | root motion ×1.4 (4 m), **knockdown** |
+| Knight Cleave | knight | GS/Slash | 0.8 s incl. 0.12 s hold | 0.2 s | 1.0 s | 18 | reach measured 2.0 m (`enemy_attack_range`) |
+| Knight Leap | knight dash, 2.8-5 m | GS/Jump_Attack | 1.0 s | 0.22 s | 1.1 s | 22 | root motion ×1.4, **knockdown** |
+
+- Root motion (`AttackProfile.root_motion`): the builder stores the hips'
+  forward travel as metadata `root_motion` (metres per frame at 30 fps)
+  and leaves it out of the pose; `MeleeAttackComponent.lunge_speed()`
+  returns its rate at the current clip position × playback speed ×
+  `root_motion_scale`, through every phase, so the body covers exactly the
+  clip's distance whatever the phase timings (tested within 0.15 m). It
+  stops when the clip stops (move-cancel) and on contact with bodies.
+- Not used yet (imported, waiting for their mechanics): `GS/Attack` and
+  `GS/Slash_4` (no clear strike in front: a pommel/body move and an overhead
+  twirl), kicks, crouched slash, block (`Block*`), crouch (`Crouch*`,
+  `Crouch_Impact*`), `Draw*` (sheathing), `Power_Up`, `Casting`, turns in
+  place (`Turn*`), deaths (the ragdoll handles death).
 
 ## Ragdoll
 
@@ -358,21 +482,43 @@ overhead cut.
   seconds. `stats.requires_line_of_sight = false` restores radius-only
   detection. `DEAD`
   disables collision and the hurtbox.
-- Attacks go through the enemy's `MeleeAttack` node (`MeleeAttackComponent`),
-  configured from `stats` at ready. Facing locks when the wind-up starts so
-  the player can sidestep.
+- Attacks go through the enemy's `MeleeAttack` node (`MeleeAttackComponent`)
+  and come from its weapon (`Weapon` node, see Weapons): `attack_profile`
+  within `attack_range`, `dash_attack` between `dash_min_range` and
+  `dash_max_range`; `EnemyStats` keeps only `dash_cooldown`. Each knight
+  picks the club or the greatsword at random on spawn
+  (`WeaponComponent.random_weapons`). Facing locks when the wind-up starts
+  so the player can sidestep.
 - `STAGGER` state: a staggering hit (`HitReaction.staggered`) cancels the
   attack; navigation and attacks are suspended until hitstun ends, then the
   enemy resumes `CHASE`. Knockback (also a flinch's small push) is added to
   its velocity in every live state. `EnemyStats.poise` / `knockback_scale`
   configure the reaction.
-- The enemy's own `AttackHitbox` is still the fixed box in front of it (not
-  club-shaped and not swept).
+- The enemy's `AttackHitbox` (masks `player_hurtbox`, `sweep` on) is a box
+  along the weapon under the `RightHand` bone attachment, like the player's
+  blade: only the swinging weapon hits, so sidesteps and rolls are judged
+  against the real arc. Club (`knight_club_swing.tres`, the old
+  `EnemyStats` swing: 15 damage, 0.7 s wind-up): 0.28 x 0.28 x 0.62 m, the
+  `Sword_Attack` markers (strike 0.37–0.5 s, recovery to 1.0 s); measured
+  reach up to 1.7 m (centre to centre) ahead and 0.6 m to either side,
+  misses at 2.3 m and behind it (`tests/enemy_test.gd`). Greatsword: see
+  Weapons.
+- No ground telegraph: the wind-up animation is the only warning.
 - Taking damage while idle switches the enemy to `CHASE` (hit aggro), even
   without line of sight.
+- Dash attack (the weapon's `enemy_dash_attack`; club:
+  `resources/combat/knight_dash.tres`): while chasing with the target in
+  sight between the dash ranges (club 3–5 m) and `dash_cooldown` 5 s since
+  the last one. The club version plays `UAL2/Sword_Dash`: 0.6 s wind-up (0.15 s hold), a 3.3 m lunge
+  (from 0.25 s before the strike), strike 0.27–0.40 s of the clip, 1.1 s
+  recovery with no move-cancel. 20 damage, heavy, **knockdown**. The
+  controller adds `melee.lunge_speed()` along its facing while attacking;
+  the lunge stops on contact (bodies collide, or the hit lands). The club
+  hitbox and the facing lock work as for the basic swing, so a sidestep or
+  roll late in the wind-up avoids it.
 - Target = first node in group `player`; aliveness via its `is_dead` property.
 - `enemy_knight.tscn`: the knight model recoloured through surface material
-  overrides (armour/skin/boots), wielding the Club. Stats:
+  overrides (armour/skin/boots), wielding a random weapon. Stats:
   `resources/enemies/ashbound_knight.tres`.
 - `WorldHealthBar` + `shaders/billboard_bar.gdshader`: camera-facing bar,
   fill via the per-instance shader parameter `ratio`.
@@ -391,6 +537,19 @@ overhead cut.
   180°, blended in between, full speed only straight ahead. The Mixamo
   directional cycles naturally move at 2.1–2.65 m/s; at full speed (6 m/s)
   they would skate even at the 1.6x cycle-rate cap. 1 = off.
+- Top speed (`_top_speed()`): `sprint_speed` 8 m/s while `sprint` is held
+  and moving (`is_sprinting`, cleared while attacking, staggered or
+  rolling), else `walk_speed` 1.6 m/s with the walk toggle on
+  (`is_walking`), else `move_speed` 6 m/s. Sprinting turns strafing off
+  (`is_strafing` is false), so the character faces where it runs even while
+  aiming or locked on; the lock itself stays.
+- Jump: `jump_height` 1 m with gravity × `air_gravity_multiplier` 1.6 in the
+  air (≈0.7 s airborne). Takes off only on the floor and when not attacking,
+  staggered or rolling; presses are buffered for `input_buffer_time`. In the
+  air, held directions steer at `air_control` 0.35 of the ground rates and
+  no input keeps the momentum (a running jump carries ~4 m); attacks and
+  dodges don't start until the landing (their presses stay buffered). A
+  1 m jump can reach crates and tables; enemies can't follow (navmesh).
 
 ## Dodge roll
 
@@ -407,39 +566,68 @@ overhead cut.
   span roll + recovery (~1.96x). Only a forward roll exists, so the character
   snaps to face the roll direction; while aiming or locked on it turns back
   toward the cursor / target afterwards.
-- Player rules (`PlayerController._update_dodge()`): Space is buffered for
+- Player rules (`PlayerController._update_dodge()`): the dodge press (Left Shift) is buffered for
   `input_buffer_time`. Direction = WASD, else the cursor, else the model's
   forward. A roll can cut into an attack's recovery but not its wind-up or
   strike (the press stays buffered). During the roll, attack presses are
   buffered without expiring; movement input, a buffered attack or a held
   attack ends the get-up recovery early. A stagger or death cancels the roll.
   Not armoured while rolling: outside the i-frames hits stagger as usual.
-- Debug-menu buttons don't take keyboard focus, so Space (`ui_accept`) never
-  presses a focused button instead of dodging.
+- Debug-menu buttons don't take keyboard focus, so Space (`ui_accept`, now jump) never
+  presses a focused button instead of jumping.
 
 ## Levels
 
-- `scenes/world/dungeon_01.tscn` is the current level. It is **generated** by
-  `tools/build_dungeon.gd` from the Dungeon Scrawl map
-  `assets/maps/dungeon_01.ds` (preview: `dungeon_01_preview.png`); re-run it
-  instead of hand-editing:
-  `godot --headless --path . -s res://tools/build_dungeon.gd`.
-- The generator reads the .ds zip (`map` JSON): the template's dungeon shape
-  polygon (floor + outer walls), its polylines (partition walls), door assets
-  (wooden frames) and text labels (a `Marker3D` per label under `Markers`,
-  e.g. `Start`, `BossRoom`). 1 grid cell (36 px) = `CELL` 2 m; map x -> +X,
-  map y -> +Z, bounding-box centre = origin.
+- Levels are built by code from a `DungeonLayout`, at runtime or by a tool
+  (step 1 of the procedural levels plan, see the "Aetherfall — Procedural
+  Level Generation Design" doc):
+  - `DungeonLayout` (`scripts/world/dungeon_layout.gd`): a level on the 2 m
+    cell grid, independent of its source: `floor_rings` (closed polygons;
+    floor = inside an odd number of them, so outlines, holes and islands
+    all work), `partitions`, `doors`, `labels`, `props`, `origin`.
+    `from_dungeon_scrawl(path)` reads a Dungeon Scrawl map; the seeded
+    generator (step 2) will fill one in code.
+  - `DungeonBuilder` (`scripts/world/dungeon_builder.gd`): `build(layout)`
+    returns the level's node tree (rules below); static
+    `bake_navigation(level, on_thread)` bakes its navmesh
+    (`make_navigation_mesh()` = the shared settings).
+  - `DungeonLevel` (`scripts/world/dungeon_level.gd`, a Node3D): `build(layout)`
+    at runtime, bakes on a thread and emits `navigation_ready` once the
+    **navigation map** uses the new navmesh, not merely when the bake ends:
+    the map takes a new region's navmesh in on a later background sync (a
+    few physics frames), and until then path queries come back empty, so it
+    polls until the map finds a point of the new navmesh. Spawn enemies and
+    start the level only after the signal. dungeon_01 builds in 0.013 s and
+    is playable 0.03-0.06 s after `build()` (headless).
+- `scenes/world/dungeon_01.tscn` is the current level, **generated** by
+  `tools/build_dungeon.gd` from `Dungeon01Layout`
+  (`scripts/world/dungeon_01_layout.gd`: the Dungeon Scrawl map
+  `assets/maps/dungeon_01.ds`, preview `dungeon_01_preview.png`, plus its
+  prop table) through `DungeonBuilder`; re-run it instead of hand-editing:
+  `godot --headless --path . -s res://tools/build_dungeon.gd`. The tool
+  keeps the scene's UID (`main.tscn` references it). The earlier hand edits
+  (campfire light 10, Barrel6 moved) now live in the builder / prop table.
+  `tests/dungeon_builder_test.gd` checks that the runtime build matches the
+  saved scene shape for shape.
+- The .ds reader takes the `map` JSON in the zip: the template's dungeon
+  shape polygon (floor + outer walls), its polylines (partition walls), door
+  assets (wooden frames) and text labels (a `Marker3D` per label under
+  `Markers`, e.g. `Start`, `BossRoom`). 1 grid cell (36 px) = `CELL` 2 m;
+  map x -> +X, map y -> +Z, bounding-box centre = origin.
 - Floor = one box per run of grid cells; walls = boxes on the void side of
   each edge (2.6 m). Outer walls facing the camera (+X/+Z) are drawn only
   0.9 m tall so they don't hide the room, but their collision stays full
   height (movement and enemy line of sight are unaffected). Torches go on the
   other walls (one per edge >= 4 cells, two from 8).
-- Props are a hand-placed table at the top of the script (grid-cell
-  coordinates): pillars, crates, barrels, tables, chest, rubble, statue,
+- Props are `[kind, cell x, cell y, yaw]` entries (dungeon_01: the table in
+  `Dungeon01Layout`): pillars, crates, barrels, tables, chest, rubble, statue,
   braziers, campfire, throne (static bodies under the navigation region) and
   decor without collision (carpet, bedroll). Placeholder primitive meshes.
-- The player start and the single (boss-room) enemy are placed in
-  `main.tscn` at the `Start` / `BossRoom` marker positions.
+- The player start is placed in `main.tscn` at the `Start` marker. Seven
+  enemies (`Main/Enemies/Knight*`) stand one per room: boss room (at the
+  `BossRoom` marker), west hall, north room, central hall, east room, south
+  hall and south-east room. Each waits at its spot until it detects the
+  player. They are at least 15 m apart and 22 m from the start.
 - `test_arena.tscn` and its navmesh are no longer used by `main.tscn`.
 
 ## Navigation
@@ -448,7 +636,8 @@ overhead cut.
   (ground, walls, obstacles); hazards stay outside so they don't block paths.
 - The dungeon navmesh is baked by `tools/build_dungeon.gd` into
   `resources/navigation/dungeon_01_navmesh.tres` (static colliders on layer 1,
-  agent radius 0.5, agent height 2). The test arena's
+  agent radius 0.5, agent height 2: `DungeonBuilder.make_navigation_mesh()`);
+  runtime levels bake the same settings on a thread (`DungeonLevel`). The test arena's
   (`test_arena_navmesh.tres`) is baked with the editor's "Bake NavigationMesh"
   button.
 - The baked mesh sits 0.5 m above the floor, so agents use
@@ -466,7 +655,7 @@ scenes/player/player.tscn            CharacterBody3D, humanoid rig + sword, appe
 scenes/characters/humanoid_rig.tscn  GENERATED: male body glTF + ragdoll + hand attachment + animations
 scripts/characters/                  character_animator, character_appearance, appearance_component, ragdoll_component, occlusion_silhouette
 tools/build_humanoid_rig.gd          Generates humanoid_rig.tscn
-tools/build_dungeon.gd               Generates dungeon_01.tscn + its navmesh
+tools/build_dungeon.gd               Saves dungeon_01.tscn + its navmesh (via DungeonBuilder)
 assets/maps/                         Dungeon Scrawl source maps (.ds) and previews
 tools/import/ual_post_import.gd      Strips per-bone position tracks from the animation library
 tools/build_mixamo_library.gd        Retargets Mixamo FBX locomotion onto the Universal skeleton
@@ -480,13 +669,19 @@ scenes/ui/hud.tscn                   Player health bar, "Defeated" + restart hin
 scenes/debug/debug_menu.tscn         F1 debug panel
 scripts/main/main.gd                 Restart flow (on the Main node)
 scripts/world/enemy_spawner.gd       Random navmesh spawns
+scripts/world/dungeon_layout.gd      DungeonLayout: a level on the cell grid (+ Dungeon Scrawl reader)
+scripts/world/dungeon_builder.gd     DungeonBuilder: layout -> level scene, navmesh settings and bake
+scripts/world/dungeon_level.gd       DungeonLevel: runtime build + threaded bake, navigation_ready
+scripts/world/dungeon_01_layout.gd   Dungeon01Layout: the first dungeon's map + prop table
 scripts/ui/damage_numbers.gd         Floating combat numbers
 scripts/components/                  health, hitbox, hurtbox, melee attack, hit flash components
-scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop
+scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop, WeaponDefinition, WeaponComponent
 scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
 scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
-resources/combat/                    Player AttackProfiles (combo A/B/C, cleave; slash and rising cut unused)
+resources/combat/                    AttackProfiles: player sword (combo A/B/C, cleave, dash; slash and rising cut unused), greatsword (gs_*), knights (club swing, dash, gs_knight_*)
+resources/weapons/                   WeaponDefinitions: sword, club, greatsword
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
+tests/*_test.gd                      Also dodge, lock_on, enemy, movement and weapon suites (same command, other file)
 tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd
 scripts/player/lock_on_component.gd  Enemy lock-on (middle mouse / Tab) and target marker
