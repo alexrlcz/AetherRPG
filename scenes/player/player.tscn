@@ -10,20 +10,16 @@
 [ext_resource type="Script" path="res://scripts/characters/occlusion_silhouette.gd" id="23_silhouette"]
 [ext_resource type="Script" path="res://scripts/characters/appearance_component.gd" id="24_appearance"]
 [ext_resource type="Resource" path="res://resources/characters/player_appearance.tres" id="25_look"]
-[ext_resource type="PackedScene" path="res://assets/equipment/Sword.fbx" id="5_sword"]
 [ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="7_hitbox"]
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="8_melee"]
-[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="30_profile"]
-[ext_resource type="Resource" path="res://resources/combat/player_combo_a.tres" id="31_combo_a"]
-[ext_resource type="Resource" path="res://resources/combat/player_combo_b.tres" id="32_combo_b"]
-[ext_resource type="Resource" path="res://resources/combat/player_combo_c.tres" id="38_combo_c"]
-[ext_resource type="Resource" path="res://resources/combat/player_cleave.tres" id="33_cleave"]
 [ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="34_reaction"]
 [ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="35_feedback"]
 [ext_resource type="Script" path="res://scripts/vfx/weapon_trail.gd" id="36_trail"]
 [ext_resource type="Script" path="res://scripts/player/lock_on_component.gd" id="37_lock"]
 [ext_resource type="Script" path="res://scripts/components/dodge_component.gd" id="39_dodge"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_component.gd" id="41_weapon"]
+[ext_resource type="Resource" path="res://resources/weapons/sword.tres" id="42_sword"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -32,16 +28,15 @@ height = 1.8
 [sub_resource type="BoxShape3D" id="Shape_attack"]
 size = Vector3(0.25, 0.3, 0.9)
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "health", "melee") groups=["player"]]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee") groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_ctrl")
-light_combo = Array[ExtResource("30_profile")]([ExtResource("31_combo_a"), ExtResource("32_combo_b"), ExtResource("38_combo_c")])
 light_after_heavy = 0
-heavy_attack = ExtResource("33_cleave")
 reaction = NodePath("HitReaction")
 lock_on = NodePath("LockOn")
 dodge = NodePath("Dodge")
+weapon = NodePath("Weapon")
 health = NodePath("HealthComponent")
 melee = NodePath("MeleeAttack")
 
@@ -53,9 +48,6 @@ shape = SubResource("CapsuleShape3D_body")
 
 [node name="Model" parent="Visual" instance=ExtResource("4_knight")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
-
-[node name="Sword" parent="Visual/Model/Armature/Skeleton3D/RightHand" instance=ExtResource("5_sword")]
-transform = Transform3D(0, 0, 0.25, 0.25, 0, 0, 0, 0.25, 0, -0.03, 0.085, 0)
 
 [node name="WeaponTrail" type="Node3D" parent="Visual/Model/Armature/Skeleton3D/RightHand" node_paths=PackedStringArray("melee")]
 script = ExtResource("36_trail")
@@ -93,6 +85,7 @@ body = NodePath("..")
 health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 death_animation = &""
+idle_variants = Array[StringName]([&"Idle", &"Idle_Talking", &"Idle_Torch", &"UAL2/Idle_FoldArms", &"UAL2/Idle_Lantern", &"UAL2/Idle_No", &"UAL2/Idle_Rail", &"UAL2/Idle_Rail_Call", &"UAL2/Idle_Shield", &"UAL2/Idle_TalkingPhone"])
 
 [node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator")]
 script = ExtResource("8_melee")
@@ -124,6 +117,7 @@ animator = NodePath("../Animator")
 hitstun_scale = 0.7
 knockback_scale = 0.8
 poise = 20.0
+knockdown_invulnerable = true
 
 [node name="ImpactFeedback" type="Node" parent="." node_paths=PackedStringArray("melee")]
 script = ExtResource("35_feedback")
@@ -160,4 +154,14 @@ root = NodePath("../Visual")
 color = Color(0.35, 0.65, 1, 0.55)
 health = NodePath("../HealthComponent")
 
+[node name="Weapon" type="Node" parent="." node_paths=PackedStringArray("hand", "hitbox", "trail", "animator", "reaction")]
+script = ExtResource("41_weapon")
+weapon = ExtResource("42_sword")
+hand = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand")
+hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
+trail = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/WeaponTrail")
+animator = NodePath("../Animator")
+reaction = NodePath("../HitReaction")
+
 [connection signal="applied" from="Appearance" to="OcclusionSilhouette" method="refresh"]
+[connection signal="equipped" from="Weapon" to="OcclusionSilhouette" method="refresh" unbinds=1]

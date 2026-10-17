@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Knight Dash"
+weight = 1
+damage = 20
+windup = 0.6
+windup_hold = 0.15
+strike_duration = 0.15
+recovery = 1.1
+animation = &"UAL2/Sword_Dash"
+anim_strike_start = 0.27
+anim_strike_end = 0.4
+anim_recovery_end = 1.5
+move_cancel = -1.0
+lunge_distance = 3.3
+lunge_lead = 0.25
+hitstop = 0.1
+camera_shake = 0.5
+knockback = 7.0
+hitstun = 0.6
+stagger = 40.0
+knockdown = true
+impact_scale = 1.4

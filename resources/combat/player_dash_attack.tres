@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Dash Strike"
+weight = 1
+damage = 25
+windup = 0.25
+strike_duration = 0.13
+recovery = 0.6
+animation = &"UAL2/Sword_Dash"
+anim_strike_start = 0.27
+anim_strike_end = 0.4
+anim_recovery_end = 1.5
+chain_delay = 0.3
+move_cancel = 0.35
+lunge_distance = 3.0
+lunge_lead = 0.2
+hitstop = 0.08
+camera_shake = 0.4
+knockback = 6.0
+hitstun = 0.45
+stagger = 30.0
+ragdoll_force = 1.4
+impact_scale = 1.3
+impact_color = Color(1, 0.75, 0.4, 1)
+trail_color = Color(1, 0.8, 0.5, 0.6)

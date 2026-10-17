@@ -2,7 +2,11 @@ class_name CharacterAnimator
 extends Node
 ## Drives a character's AnimationPlayer from its body's movement and health.
 ## Shared by the player and enemies. Gameplay code only calls `play_action()`
-## for one-shot animations (attacks); locomotion and death are automatic.
+## for one-shot animations (attacks); locomotion, jumps / falls, landings,
+## idle variants and death are automatic.
+##
+## Optional body properties it reads (via get(), so any body works):
+## `is_strafing` (directional cycles), `is_walking` (formal walk cycle).
 
 @export var body: CharacterBody3D
 @export var health: HealthComponent
@@ -12,6 +16,11 @@ extends Node
 @export var idle_animation: StringName = &"Sword_Idle"
 @export var walk_animation: StringName = &"Walk"
 @export var run_animation: StringName = &"Jog_Fwd"
+## Played above `run_to_sprint_speed`. Empty = never sprint.
+@export var sprint_animation: StringName = &"Sprint"
+## Walk cycle used instead of `walk_animation` while the body's `is_walking`
+## is true (walk toggle). Empty = always `walk_animation`.
+@export var formal_walk_animation: StringName = &"Walk_Formal"
 @export var death_animation: StringName = &"Death01"
 
 @export_group("Tuning")
@@ -31,6 +40,12 @@ extends Node
 ## Movement speed (m/s) at which the run cycle plays at normal rate
 ## (Jog_Fwd covers 5 m in 0.93 s).
 @export var run_reference_speed: float = 5.36
+## Speed (m/s) above which the run cycle switches to the sprint cycle
+## (same hysteresis as walk/run).
+@export var run_to_sprint_speed: float = 7.0
+## Movement speed (m/s) at which the sprint cycle plays at normal rate
+## (measured from its stride against Jog_Fwd's: ~7.06 m/s).
+@export var sprint_reference_speed: float = 7.06
 ## Playback rate limits for the locomotion cycles, so a cycle never crawls in
 ## slow motion while the character is speeding up or slowing down.
 @export var min_cycle_rate: float = 0.6
@@ -64,9 +79,52 @@ extends Node
 ## Degrees a direction must pass a sector boundary before the clip changes.
 @export var direction_hysteresis: float = 10.0
 
+@export_group("Jump")
+## One-shot played when the body leaves the floor moving up (a jump).
+@export var jump_animation: StringName = &"Jump_Start"
+## Seconds into `jump_animation` to start from (skips the crouch, so the
+## take-off shows on the same tick the body leaves the ground).
+@export var jump_animation_start: float = 0.1
+@export var jump_animation_speed: float = 1.5
+## Used instead of `jump_animation` when taking off at run speed (above
+## `walk_to_run_speed`), from `run_jump_animation_start`, at the same speed.
+## Empty = always `jump_animation`.
+@export var run_jump_animation: StringName = &""
+@export var run_jump_animation_start: float = 0.0
+## Loop played while airborne once the jump clip ends (or when falling).
+@export var air_animation: StringName = &"Jump"
+## One-shot played on touching down after at least `min_air_time` airborne.
+@export var land_animation: StringName = &"Jump_Land"
+## Seconds into `land_animation` to start from (the moment of contact).
+@export var land_animation_start: float = 0.05
+@export var land_animation_speed: float = 1.4
+## Seconds after touching down before moving cuts the landing short.
+@export var land_cancel_time: float = 0.15
+## Shorter airborne spells (steps, bumps) don't change the animation.
+@export var min_air_time: float = 0.12
+## Vertical speed (m/s) leaving the floor that counts as a jump, not a fall.
+@export var jump_detect_speed: float = 1.0
+
+@export_group("Idle Variants")
+## Played now and then while standing still (not strafing). Empty = none.
+@export var idle_variants: Array[StringName] = []
+## Seconds of standing still before a variant plays (and between variants).
+@export var idle_variant_delay: float = 8.0
+## A variant loops for at least this long (whole loops), then the base idle
+## returns.
+@export var idle_variant_min_duration: float = 4.0
+
 var _dead: bool = false
 var _action: StringName = &""
 var _queued: StringName = &""
+var _queued_speed: float = -1.0
+var _was_on_floor: bool = true
+var _air_time: float = 0.0
+var _land_time: float = -1.0
+var _idle_time: float = 0.0
+var _variant: StringName = &""
+var _variant_left: float = 0.0
+var _last_variant: StringName = &""
 ## Directional sector while strafing: 0 forward, 1 forward diagonal, 2 strafe,
 ## 3 back diagonal, 4 back.
 var _sector: int = 0
@@ -80,7 +138,10 @@ func _ready() -> void:
 	# visible is lost.
 	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	# Not every locomotion animation is flagged as looping on import.
-	for anim_name in [idle_animation, walk_animation, run_animation]:
+	var loops: Array[StringName] = [idle_animation, walk_animation, run_animation,
+		sprint_animation, formal_walk_animation, air_animation]
+	loops.append_array(idle_variants)
+	for anim_name in loops:
 		if anim_name == &"":
 			continue
 		if animation_player.has_animation(anim_name):
@@ -93,14 +154,24 @@ func _ready() -> void:
 	animation_player.play(idle_animation)
 
 
-func _process(_delta: float) -> void:
-	if _dead or _action != &"":
+func _process(delta: float) -> void:
+	if _dead:
 		return
 	var horizontal := Vector3(body.velocity.x, 0.0, body.velocity.z)
 	var speed := horizontal.length()
-	if speed < move_threshold:
-		_play(idle_animation, 1.0)
+	_update_air(delta, speed)
+	if _action != &"":
+		_idle_time = 0.0
 		return
+	if _air_time >= min_air_time:
+		_idle_time = 0.0
+		_play(air_animation, 1.0)
+		return
+	if speed < move_threshold:
+		_play_idle(delta)
+		return
+	_idle_time = 0.0
+	_variant = &""
 	if body.get(&"is_strafing") == true:
 		var directional := _directional_animation(horizontal)
 		if directional != &"":
@@ -113,8 +184,11 @@ func _process(_delta: float) -> void:
 	var anim := run_animation
 	var reference := run_reference_speed
 	if _uses_walk(speed):
-		anim = walk_animation
+		anim = _walk_cycle()
 		reference = walk_reference_speed
+	elif _uses_sprint(speed):
+		anim = sprint_animation
+		reference = sprint_reference_speed
 	var rate := clampf(speed / reference, min_cycle_rate, max_cycle_rate)
 	var forward := -body.global_basis.z
 	if body.get(&"is_strafing") == true 			and horizontal.normalized().dot(forward) < backwards_threshold:
@@ -165,9 +239,106 @@ func _sector_for(off: float) -> int:
 func _uses_walk(speed: float) -> bool:
 	if walk_animation == &"":
 		return false
-	if animation_player.current_animation == walk_animation:
+	var current := StringName(animation_player.current_animation)
+	if current == walk_animation or (current == formal_walk_animation and current != &""):
 		return speed < walk_to_run_speed + walk_run_hysteresis
 	return speed < walk_to_run_speed - walk_run_hysteresis
+
+
+func _walk_cycle() -> StringName:
+	if formal_walk_animation != &"" and body.get(&"is_walking") == true \
+			and animation_player.has_animation(formal_walk_animation):
+		return formal_walk_animation
+	return walk_animation
+
+
+func _uses_sprint(speed: float) -> bool:
+	if sprint_animation == &"" or not animation_player.has_animation(sprint_animation):
+		return false
+	if animation_player.current_animation == sprint_animation:
+		return speed > run_to_sprint_speed - walk_run_hysteresis
+	return speed > run_to_sprint_speed + walk_run_hysteresis
+
+
+## Jump start on take-off, landing on touch-down. The air loop itself is
+## picked in _process() once nothing else plays.
+func _update_air(delta: float, speed: float) -> void:
+	var on_floor := body.is_on_floor()
+	if not on_floor:
+		if _was_on_floor and body.velocity.y > jump_detect_speed:
+			_air_time = min_air_time  # A jump: show it at once.
+			if run_jump_animation != &"" and speed >= walk_to_run_speed \
+					and animation_player.has_animation(run_jump_animation):
+				_play_one_shot(run_jump_animation, jump_animation_speed, run_jump_animation_start)
+			else:
+				_play_one_shot(jump_animation, jump_animation_speed, jump_animation_start)
+		_air_time += delta
+	else:
+		if _air_time >= min_air_time and _action in [&"", jump_animation, run_jump_animation]:
+			_land_time = 0.0
+			_play_one_shot(land_animation, land_animation_speed, land_animation_start)
+		_air_time = 0.0
+		if _land_time >= 0.0:
+			_land_time += delta
+			if _action != land_animation:
+				_land_time = -1.0
+			elif _land_time >= land_cancel_time and speed >= move_threshold:
+				stop_action()  # Moving off: the run takes over from the squat.
+				_land_time = -1.0
+	_was_on_floor = on_floor
+
+
+func _play_one_shot(anim_name: StringName, speed: float, from_time: float) -> void:
+	if anim_name != &"" and animation_player.has_animation(anim_name):
+		play_action(anim_name, speed, from_time)
+
+
+## True while airborne long enough to show the jump / air animations.
+func is_airborne() -> bool:
+	return _air_time >= min_air_time
+
+
+## Base idle, with a random variant now and then.
+func _play_idle(delta: float) -> void:
+	if idle_variants.is_empty() or body.get(&"is_strafing") == true:
+		_idle_time = 0.0
+		_variant = &""
+		_play(idle_animation, 1.0)
+		return
+	if _variant != &"":
+		_variant_left -= delta
+		if _variant_left <= 0.0:
+			_variant = &""
+			_idle_time = 0.0
+		else:
+			_play(_variant, 1.0)
+			return
+	_idle_time += delta
+	if _idle_time >= idle_variant_delay:
+		_start_variant()
+		if _variant != &"":
+			_play(_variant, 1.0)
+			return
+	_play(idle_animation, 1.0)
+
+
+func _start_variant() -> void:
+	var choices: Array[StringName] = []
+	for anim_name in idle_variants:
+		if anim_name != _last_variant and animation_player.has_animation(anim_name):
+			choices.append(anim_name)
+	if choices.is_empty():
+		_idle_time = 0.0
+		return
+	_variant = choices.pick_random()
+	_last_variant = _variant
+	var length := animation_player.get_animation(_variant).length
+	_variant_left = ceilf(idle_variant_min_duration / maxf(length, 0.01)) * length
+
+
+## The idle variant playing now, or &"".
+func current_idle_variant() -> StringName:
+	return _variant
 
 
 ## Plays a one-shot animation from `from_time` (s); locomotion resumes when it
@@ -187,12 +358,14 @@ func play_action(anim_name: StringName, speed: float = 1.0, from_time: float = 0
 	animation_player.speed_scale = speed
 
 
-## Plays `anim_name` straight after the current one-shot ends, at the same
-## speed and without a crossfade (for clips that continue each other's pose,
-## e.g. a swing and its return to guard). Cleared by any new action.
-func queue_action(anim_name: StringName) -> void:
+## Plays `anim_name` straight after the current one-shot ends, without a
+## crossfade (for clips that continue each other's pose, e.g. a swing and its
+## return to guard), at `speed` (< 0 = the current speed). Cleared by any new
+## action.
+func queue_action(anim_name: StringName, speed: float = -1.0) -> void:
 	if _action != &"":
 		_queued = anim_name
+		_queued_speed = speed
 
 
 ## The one-shot playing now, or &"" during locomotion.
@@ -235,6 +408,8 @@ func _on_animation_finished(anim_name: StringName) -> void:
 		_action = _queued
 		_queued = &""
 		animation_player.play(_action, 0.0)
+		if _queued_speed >= 0.0:
+			animation_player.speed_scale = _queued_speed
 		return
 	_action = &""
 

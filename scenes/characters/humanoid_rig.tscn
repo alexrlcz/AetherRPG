@@ -4,6 +4,7 @@
 [ext_resource type="AnimationLibrary" path="res://assets/characters/universal/animations/UAL1_Standard.glb" id="2_anims"]
 [ext_resource type="AnimationLibrary" path="res://assets/characters/universal/animations/UAL2_Standard.glb" id="3_anims"]
 [ext_resource type="AnimationLibrary" path="res://assets/characters/mixamo/mixamo_locomotion.res" id="4_anims"]
+[ext_resource type="AnimationLibrary" path="res://assets/characters/mixamo/mixamo_greatsword.res" id="5_anims"]
 
 [sub_resource type="CapsuleShape3D" id="Capsule_pelvis"]
 radius = 0.15
@@ -267,5 +268,6 @@ bone_name = "hand_r"
 libraries = {
 &"": ExtResource("2_anims"),
 &"UAL2": ExtResource("3_anims"),
-&"MX": ExtResource("4_anims")
+&"MX": ExtResource("4_anims"),
+&"GS": ExtResource("5_anims")
 }

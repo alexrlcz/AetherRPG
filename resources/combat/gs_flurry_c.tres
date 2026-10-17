@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Flurry III"
+weight = 1
+damage = 30
+windup = 0.2
+strike_duration = 0.15
+recovery = 0.75
+animation = &"GS/Slash_2"
+anim_start = 2.3
+anim_strike_start = 2.55
+anim_strike_end = 2.72
+chain_delay = 0.4
+move_cancel = 0.5
+root_motion = true
+hitstop = 0.1
+camera_shake = 0.45
+knockback = 6.0
+hitstun = 0.6
+stagger = 30.0
+knockdown = true
+impact_scale = 1.4
+trail_color = Color(0.95, 0.85, 0.75, 0.6)

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="2_r"]
+[ext_resource type="Resource" path="res://resources/combat/knight_club_swing.tres" id="3_r"]
+[ext_resource type="Resource" path="res://resources/combat/knight_dash.tres" id="4_r"]
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Club"
+model = ExtResource("2_r")
+model_transform = Transform3D(0, 0, 0.3, 0.3, 0, 0, 0, 0.3, 0, -0.03, 0.085, 0)
+hitbox_size = Vector3(0.28, 0.28, 0.62)
+hitbox_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.03, 0.085, 0.33)
+enemy_attack = ExtResource("3_r")
+enemy_attack_range = 1.7
+enemy_dash_attack = ExtResource("4_r")
+enemy_dash_min_range = 3.0
+enemy_dash_max_range = 5.0

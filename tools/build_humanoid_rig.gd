@@ -6,7 +6,8 @@ extends SceneTree
 ## UAL1 as the default library ("Idle", "Sword_Attack"...) and UAL2 as the
 ## "UAL2" library ("UAL2/Sword_Regular_A"...). Both share the same skeleton.
 ## Retargeted Mixamo locomotion (tools/build_mixamo_library.gd) is the "MX"
-## library ("MX/Strafe_L"...).
+## library ("MX/Strafe_L"...), the retargeted Mixamo greatsword set the "GS"
+## library ("GS/Slash"...).
 ## The look (body, skin, hair...) is applied at runtime by AppearanceComponent.
 ##
 ## Run:  godot --headless --path . -s res://tools/build_humanoid_rig.gd
@@ -17,6 +18,7 @@ const MODEL := "res://assets/characters/universal/bodies/Superhero_Male_FullBody
 const ANIMATIONS := "res://assets/characters/universal/animations/UAL1_Standard.glb"
 const ANIMATIONS_2 := "res://assets/characters/universal/animations/UAL2_Standard.glb"
 const ANIMATIONS_MX := "res://assets/characters/mixamo/mixamo_locomotion.res"
+const ANIMATIONS_GS := "res://assets/characters/mixamo/mixamo_greatsword.res"
 const OUTPUT := "res://scenes/characters/humanoid_rig.tscn"
 const SKELETON := "Armature/Skeleton3D"
 const SIM := SKELETON + "/PhysicalBoneSimulator3D"
@@ -57,13 +59,14 @@ func _initialize() -> void:
 		_emit_bone(skeleton, spec, subs, nodes)
 
 	nodes.append('[node name="RightHand" type="BoneAttachment3D" parent="%s"]\nbone_name = "hand_r"\n' % SKELETON)
-	nodes.append('[node name="AnimationPlayer" type="AnimationPlayer" parent="."]\nlibraries = {\n&"": ExtResource("2_anims"),\n&"UAL2": ExtResource("3_anims"),\n&"MX": ExtResource("4_anims")\n}\n')
+	nodes.append('[node name="AnimationPlayer" type="AnimationPlayer" parent="."]\nlibraries = {\n&"": ExtResource("2_anims"),\n&"UAL2": ExtResource("3_anims"),\n&"MX": ExtResource("4_anims"),\n&"GS": ExtResource("5_anims")\n}\n')
 
 	var text := "[gd_scene format=3]\n\n"
 	text += '[ext_resource type="PackedScene" path="%s" id="1_model"]\n' % MODEL
 	text += '[ext_resource type="AnimationLibrary" path="%s" id="2_anims"]\n' % ANIMATIONS
 	text += '[ext_resource type="AnimationLibrary" path="%s" id="3_anims"]\n' % ANIMATIONS_2
-	text += '[ext_resource type="AnimationLibrary" path="%s" id="4_anims"]\n\n' % ANIMATIONS_MX
+	text += '[ext_resource type="AnimationLibrary" path="%s" id="4_anims"]\n' % ANIMATIONS_MX
+	text += '[ext_resource type="AnimationLibrary" path="%s" id="5_anims"]\n\n' % ANIMATIONS_GS
 	text += "\n".join(subs) + "\n" + "\n".join(nodes)
 
 	var file := FileAccess.open(OUTPUT, FileAccess.WRITE)

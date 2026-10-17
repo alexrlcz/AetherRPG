@@ -1,13 +1,23 @@
 extends SceneTree
-## Generates res://assets/characters/mixamo/mixamo_locomotion.res: an
-## AnimationLibrary of Mixamo locomotion clips retargeted onto the Universal
-## (UE-mannequin-style) skeleton, used by the rig as the "MX" library.
+## Generates AnimationLibraries of Mixamo clips retargeted onto the Universal
+## (UE-mannequin-style) skeleton (see LIBRARIES): mixamo_locomotion.res (the
+## rig's "MX" library) and mixamo_greatsword.res (its "GS" library).
 ##
 ## Run:  godot --headless --path . -s res://tools/build_mixamo_library.gd [-- <source dir>]
-## The source FBX files (Mixamo, "Without Skin", Y Bot skeleton) are read from
+## The source FBX files (Mixamo, "Without Skin" or "With Skin") are read from
 ## SOURCE_DIR at build time and are not part of the project. Clips whose source
 ## file is not in the directory are kept from the existing library, so new
 ## clips can be added without the original downloads.
+##
+## Clip options (a Dictionary entry instead of a bare file name):
+##   loop        - false: plays once (attacks, reactions). Default true.
+##   root_motion - the hips' forward (+Z) travel is taken out of the pose
+##                 entirely and stored as metadata "root_motion": forward
+##                 metres at our scale per frame (1 / FPS s), so attacks move
+##                 the body exactly as the clip did (MeleeAttackComponent).
+##                 Sideways sway stays in the pose.
+##   no_rise     - hips never go above their rest height (in-place jumps:
+##                 the body's own jump supplies the height).
 ##
 ## Retargeting: both skeletons rest in a T-pose, Y up, facing +Z, in metres,
 ## so each mapped bone gets the source bone's world-space rotation away from
@@ -20,15 +30,15 @@ extends SceneTree
 ## travel speed is stored as metadata "reference_speed" (m/s, at our scale) so
 ## CharacterAnimator can match the cycle rate to the body's speed.
 
-const SOURCE_DIR := "D:/AetherRPG/MIXAMO Animations"
-const OUTPUT := "res://assets/characters/mixamo/mixamo_locomotion.res"
+const SOURCE_DIR := "E:/GODOT/Aether/mixamo animations"
 const TARGET_BODY := "res://assets/characters/universal/bodies/Superhero_Male_FullBody.gltf"
 const TRACK_PREFIX := "Armature/Skeleton3D:"
 const FPS := 30.0
 const SOURCE_PREFIX := "mixamorig_"
 
-## Output clip name -> source file. The character faces +Z, so its left is +X.
-const CLIPS := {
+## Output clip name -> source file (or options, see above). The character
+## faces +Z, so its left is +X.
+const CLIPS_MX := {
 	"Jog_Fwd_L": "Jog Forward Diagonal.fbx",        # travels forward and to the left
 	"Jog_Fwd_R": "Jog Forward Diagonal (1).fbx",    # travels forward and to the right
 	"Jog_Bwd": "Jog Backward.fbx",
@@ -36,6 +46,78 @@ const CLIPS := {
 	"Jog_Bwd_R": "Jog Backward Diagonal (1).fbx",   # travels back and to the right
 	"Strafe_L": "Jog Strafe Left.fbx",
 	"Strafe_R": "Jog Strafe Right.fbx",
+}
+
+const ONCE := {"loop": false}
+
+## Every Mixamo greatsword clip. Only some are used so far (see
+## docs/architecture.md, Weapons); the rest are ready for block, crouch,
+## sheathe, kick and ability mechanics.
+const CLIPS_GS := {
+	# Locomotion (loops; travel removed, speed in "reference_speed").
+	"Idle": "great sword idle.fbx",
+	"Idle_2": "great sword idle (2).fbx",
+	"Idle_3": "great sword idle (3).fbx",
+	"Idle_4": "great sword idle (4).fbx",
+	"Idle_5": "great sword idle (5).fbx",
+	"Walk": "great sword walk.fbx",
+	"Walk_Bwd": "great sword walk (2).fbx",
+	"Walk_L": "great sword strafe.fbx",
+	"Walk_R": "great sword strafe (2).fbx",
+	"Run": "great sword run (2).fbx",
+	"Run_Bwd": "great sword run.fbx",
+	"Strafe_L": "great sword strafe (3).fbx",
+	"Strafe_R": "great sword strafe (4).fbx",
+	# Turns in place.
+	"Turn": {"file": "great sword turn.fbx", "loop": false},
+	"Turn_2": {"file": "great sword turn (2).fbx", "loop": false},
+	"Turn_180": {"file": "great sword 180 turn.fbx", "loop": false},
+	"Turn_180_2": {"file": "great sword 180 turn (2).fbx", "loop": false},
+	# Jumps: the body's jump supplies the height and travel.
+	"Jump": {"file": "great sword jump (2).fbx", "loop": false, "no_rise": true},
+	"Jump_Run": {"file": "great sword jump.fbx", "loop": false, "no_rise": true},
+	# Attacks (root motion where the clip travels).
+	"Slash": {"file": "great sword slash.fbx", "loop": false},
+	"Slash_2": {"file": "great sword slash (2).fbx", "loop": false, "root_motion": true},
+	"Slash_3": {"file": "great sword slash (3).fbx", "loop": false},
+	"Slash_4": {"file": "great sword slash (4).fbx", "loop": false, "root_motion": true},
+	"Slash_Crouch": {"file": "great sword slash (5).fbx", "loop": false},
+	"Attack": {"file": "great sword attack.fbx", "loop": false},
+	"Spin_Attack": {"file": "great sword high spin attack.fbx", "loop": false, "root_motion": true},
+	"Jump_Attack": {"file": "great sword jump attack.fbx", "loop": false, "root_motion": true},
+	"Slide_Attack": {"file": "great sword slide attack.fbx", "loop": false, "root_motion": true},
+	"Kick": {"file": "great sword kick.fbx", "loop": false},
+	"Kick_2": {"file": "great sword kick (2).fbx", "loop": false},
+	# Hit reactions.
+	"Impact": {"file": "great sword impact (2).fbx", "loop": false},
+	"Impact_2": {"file": "great sword impact (3).fbx", "loop": false},
+	"Death": {"file": "two handed sword death.fbx", "loop": false, "root_motion": true},
+	"Death_2": {"file": "two handed sword death (2).fbx", "loop": false, "root_motion": true},
+	# Block.
+	"Block_Idle": "great sword blocking (2).fbx",
+	"Block": {"file": "great sword blocking.fbx", "loop": false},
+	"Block_2": {"file": "great sword blocking (3).fbx", "loop": false},
+	"Block_Impact": {"file": "great sword impact.fbx", "loop": false},
+	# Crouch.
+	"Crouch": {"file": "great sword crouching.fbx", "loop": false},
+	"Crouch_2": {"file": "great sword crouching (2).fbx", "loop": false},
+	"Crouch_3": "great sword crouching (3).fbx",
+	"Crouch_4": {"file": "great sword crouching (4).fbx", "loop": false},
+	"Crouch_5": "great sword crouching (5).fbx",
+	"Crouch_6": {"file": "great sword crouching (6).fbx", "loop": false},
+	"Crouch_Impact": {"file": "great sword impact (4).fbx", "loop": false},
+	"Crouch_Impact_2": {"file": "great sword impact (5).fbx", "loop": false},
+	# Draw / abilities.
+	"Draw": {"file": "draw a great sword 1.fbx", "loop": false},
+	"Draw_2": {"file": "draw a great sword 2.fbx", "loop": false},
+	"Power_Up": {"file": "great sword power up.fbx", "loop": false},
+	"Casting": {"file": "great sword casting.fbx", "loop": false},
+}
+
+## Output library -> its clips.
+const LIBRARIES := {
+	"res://assets/characters/mixamo/mixamo_locomotion.res": CLIPS_MX,
+	"res://assets/characters/mixamo/mixamo_greatsword.res": CLIPS_GS,
 }
 
 
@@ -48,47 +130,57 @@ func _initialize() -> void:
 	var target: Node3D = (load(TARGET_BODY) as PackedScene).instantiate()
 	root.add_child(target)
 	var tgt_skel: Skeleton3D = target.find_children("*", "Skeleton3D", true, false)[0]
+	var ok := true
+	for output: String in LIBRARIES:
+		ok = await _build(output, LIBRARIES[output], source_dir, tgt_skel) and ok
+	target.free()
+	quit(0 if ok else 1)
 
+
+func _build(output: String, clips: Dictionary, source_dir: String, tgt_skel: Skeleton3D) -> bool:
 	var library := AnimationLibrary.new()
-	var existing: AnimationLibrary = load(OUTPUT) if ResourceLoader.exists(OUTPUT) else null
-	for clip_name: String in CLIPS:
-		var path := source_dir.path_join(CLIPS[clip_name])
+	var existing: AnimationLibrary = load(output) if ResourceLoader.exists(output) else null
+	for clip_name: String in clips:
+		var options: Dictionary = clips[clip_name] if clips[clip_name] is Dictionary \
+			else {"file": clips[clip_name]}
+		var file: String = options["file"]
+		var path := source_dir.path_join(file)
 		if not FileAccess.file_exists(path):
 			if existing and existing.has_animation(clip_name):
 				library.add_animation(clip_name, existing.get_animation(clip_name))
-				print("%s: kept from existing library (%s not found)" % [clip_name, CLIPS[clip_name]])
+				print("%s: kept from existing library (%s not found)" % [clip_name, file])
 				continue
 			push_error("cannot find %s and no existing clip '%s'" % [path, clip_name])
-			quit(1)
-			return
+			return false
 		var doc := FBXDocument.new()
 		var state := FBXState.new()
 		var err := doc.append_from_file(path, state)
 		if err != OK:
 			push_error("cannot read %s (%s)" % [path, error_string(err)])
-			quit(1)
-			return
+			return false
 		var source := doc.generate_scene(state)
 		root.add_child(source)
 		await process_frame  # The AnimationPlayer only applies poses once it has processed.
 		var src_skel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
 		var player: AnimationPlayer = source.find_children("*", "AnimationPlayer", true, false)[0]
-		var anim := _retarget(src_skel, player, _main_take(player), tgt_skel)
+		var anim := _retarget(src_skel, player, _main_take(player), tgt_skel, options)
 		library.add_animation(clip_name, anim)
-		print("%s <- %s: %.2f s, reference speed %.2f m/s, travel %s (+Z forward, +X left)" % [
-			clip_name, CLIPS[clip_name], anim.length, anim.get_meta("reference_speed"),
-			anim.get_meta("travel_direction")])
+		print("%s <- %s: %.2f s, reference speed %.2f m/s, travel %s (+Z forward, +X left)%s" % [
+			clip_name, file, anim.length, anim.get_meta("reference_speed"),
+			anim.get_meta("travel_direction"),
+			", root motion %.2f m" % anim.get_meta("root_motion")[-1] if anim.has_meta("root_motion") else ""])
 		source.free()
 
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT.get_base_dir()))
-	var save_err := ResourceSaver.save(library, OUTPUT)
-	print("wrote %s (%s)" % [OUTPUT, error_string(save_err)])
-	target.free()
-	quit(0 if save_err == OK else 1)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output.get_base_dir()))
+	var save_err := ResourceSaver.save(library, output)
+	print("wrote %s (%s)" % [output, error_string(save_err)])
+	return save_err == OK
 
 
 func _retarget(src_skel: Skeleton3D, player: AnimationPlayer, anim_name: StringName,
-		tgt_skel: Skeleton3D) -> Animation:
+		tgt_skel: Skeleton3D, options: Dictionary = {}) -> Animation:
+	var root_motion: bool = options.get("root_motion", false)
+	var no_rise: bool = options.get("no_rise", false)
 	var source_anim := player.get_animation(anim_name)
 	var length := source_anim.length
 	var bone_map := _bone_map()
@@ -124,7 +216,7 @@ func _retarget(src_skel: Skeleton3D, player: AnimationPlayer, anim_name: StringN
 
 	var out := Animation.new()
 	out.length = length
-	out.loop_mode = Animation.LOOP_LINEAR
+	out.loop_mode = Animation.LOOP_LINEAR if options.get("loop", true) else Animation.LOOP_NONE
 	out.set_meta("reference_speed", travel.length() / length * ratio)
 	out.set_meta("travel_direction", travel.normalized())
 	var rot_track := {}
@@ -139,6 +231,7 @@ func _retarget(src_skel: Skeleton3D, player: AnimationPlayer, anim_name: StringN
 	out.position_track_insert_key(root_track, 0.0, tgt_skel.get_bone_rest(root_bone).origin)
 
 	var frames := int(round(length * FPS))
+	var forward_travel := PackedFloat32Array()
 	for f in frames + 1:
 		var time := minf(f / FPS, length)
 		var hips_pos := _sample_hips(player, src_skel, hips, time)
@@ -155,9 +248,21 @@ func _retarget(src_skel: Skeleton3D, player: AnimationPlayer, anim_name: StringN
 				q = parent_q * tgt_skel.get_bone_rest(b).basis.get_rotation_quaternion()
 			global[b] = q
 			out.rotation_track_insert_key(rot_track[b], time, (parent_q.inverse() * q).normalized())
-		# In place: remove the straight-line travel, keep sway and bob.
-		var offset := hips_pos - hips_rest - travel * (time / length)
+		var offset: Vector3
+		if root_motion:
+			# All forward travel becomes body movement; sway stays in the pose.
+			offset = hips_pos - hips_rest
+			forward_travel.append((offset.z - (start.z - hips_rest.z)) * ratio)
+			offset.z = start.z - hips_rest.z
+		else:
+			# In place: remove the straight-line travel, keep sway and bob.
+			offset = hips_pos - hips_rest - travel * (time / length)
+		if no_rise:
+			offset.y = minf(offset.y, 0.0)
 		out.position_track_insert_key(pelvis_track, time, pelvis_rest + root_basis_inv * (offset * ratio))
+	if root_motion:
+		out.set_meta("root_motion", forward_travel)
+		out.set_meta("root_motion_fps", FPS)
 	return out
 
 

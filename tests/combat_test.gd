@@ -12,6 +12,8 @@ const SLASH := preload("res://resources/combat/player_combo_a.tres")
 const RISING := preload("res://resources/combat/player_combo_b.tres")
 const FINISHER := preload("res://resources/combat/player_combo_c.tres")
 const CLEAVE := preload("res://resources/combat/player_cleave.tres")
+const CLUB := preload("res://resources/weapons/club.tres")
+const GREATSWORD := preload("res://resources/weapons/greatsword.tres")
 
 var failures: int = 0
 var world: Node3D
@@ -212,12 +214,15 @@ func test_enemy_armor_and_recovery() -> void:
 	await physics_frame
 	check(enemy.state == EnemyController.State.STAGGER, "heavy hit staggered the enemy")
 	check(not enemy.melee.is_busy(), "enemy attack cancelled")
+	# The Cleave knocks down: the stun is the fall + get-up, not its hitstun.
+	check(CLEAVE.knockdown and enemy.reaction.is_knocked_down(), "Cleave knocked the enemy down")
+	var expected := enemy.reaction.knockdown_duration()
 	var stun_start := Time.get_ticks_msec()
-	await wait_until(func() -> bool: return enemy.state != EnemyController.State.STAGGER, 200)
+	await wait_until(func() -> bool: return enemy.state != EnemyController.State.STAGGER, 300)
 	var stun := (Time.get_ticks_msec() - stun_start) / 1000.0
 	check(enemy.state in [EnemyController.State.CHASE, EnemyController.State.ATTACK],
 		"AI resumed chasing/attacking after %.2f s" % stun)
-	check(stun < CLEAVE.hitstun + 0.3, "hitstun ended on time")
+	check(absf(stun - expected) < 0.3, "knockdown ended on time (expected %.2f s)" % expected)
 	await clear_arena()
 
 
@@ -459,9 +464,13 @@ func spawn_player(at: Vector3) -> PlayerController:
 
 
 ## A real enemy facing the player. `passive` = never notices anyone, so tests
-## control everything it does.
-func spawn_enemy(at: Vector3, passive: bool) -> EnemyController:
+## control everything it does. It wields `weapon` (the club by default)
+## instead of a random one.
+func spawn_enemy(at: Vector3, passive: bool, weapon: WeaponDefinition = CLUB) -> EnemyController:
 	var enemy: EnemyController = ENEMY.instantiate()
+	var weapon_node := enemy.get_node("Weapon") as WeaponComponent
+	weapon_node.random_weapons = []
+	weapon_node.weapon = weapon
 	if passive:
 		var stats: EnemyStats = enemy.stats.duplicate()
 		stats.detection_radius = 0.0

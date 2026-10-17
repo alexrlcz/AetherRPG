@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Knight Cleave"
+damage = 18
+windup = 0.8
+windup_hold = 0.12
+strike_duration = 0.2
+recovery = 1.0
+animation = &"GS/Slash"
+anim_strike_start = 0.57
+anim_strike_end = 0.8
+anim_recovery_end = 1.27
+move_cancel = -1.0
+knockback = 4.0
+hitstun = 0.35
+stagger = 18.0

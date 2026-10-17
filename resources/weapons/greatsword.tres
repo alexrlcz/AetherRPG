@@ -1,0 +1,70 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="PackedScene" path="res://assets/equipment/Claymore.fbx" id="2_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_cleave_down.tres" id="3_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_rising_sweep.tres" id="4_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_flurry_a.tres" id="5_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_flurry_b.tres" id="6_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_flurry_c.tres" id="7_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_whirlwind.tres" id="8_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_slide_strike.tres" id="9_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_leaping_slam.tres" id="10_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_knight_slash.tres" id="11_r"]
+[ext_resource type="Resource" path="res://resources/combat/gs_knight_leap.tres" id="12_r"]
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Greatsword"
+model = ExtResource("2_r")
+model_transform = Transform3D(0, -0.00025993932, 0.25999987, 0.25448072, -0.053287562, -5.327516e-05, 0.053287588, 0.25448057, 0.00025442135, -0.0016724765, 0.12514234, -0.31264555)
+hitbox_size = Vector3(0.3, 1.1, 0.25)
+hitbox_transform = Transform3D(0, -0.0009997666, 0.9999995, 0.9787719, -0.20495214, -0.00020490444, 0.20495224, 0.97877145, 0.0009785437, -0.0027642217, -0.098665416, 0.7561728)
+trail_base = Vector3(-0.002244343, 0.0079097, 0.2472117)
+trail_tip = Vector3(-0.0032841002, -0.20524055, 1.265134)
+light_combo = Array[ExtResource("1_profile")]([ExtResource("3_r"), ExtResource("4_r"), ExtResource("5_r"), ExtResource("6_r"), ExtResource("7_r")])
+heavy_attack = ExtResource("8_r")
+dash_attack = ExtResource("9_r")
+dash_heavy_attack = ExtResource("10_r")
+light_after_heavy = 1
+enemy_attack = ExtResource("11_r")
+enemy_attack_range = 2.0
+enemy_dash_attack = ExtResource("12_r")
+enemy_dash_min_range = 2.8
+enemy_dash_max_range = 5.0
+animator_overrides = {
+"backward_animation": &"GS/Run_Bwd",
+"backward_left_animation": &"GS/Run_Bwd",
+"backward_right_animation": &"GS/Run_Bwd",
+"formal_walk_animation": &"",
+"forward_left_animation": &"",
+"forward_right_animation": &"",
+"idle_animation": &"GS/Idle",
+"idle_variants": Array[StringName]([&"GS/Idle_2", &"GS/Idle_3", &"GS/Idle_4", &"GS/Idle_5"]),
+"jump_animation": &"GS/Jump",
+"jump_animation_speed": 0.66,
+"jump_animation_start": 0.15,
+"land_animation": &"GS/Jump",
+"land_animation_speed": 1.2,
+"land_animation_start": 0.62,
+"run_animation": &"GS/Run",
+"run_jump_animation": &"GS/Jump_Run",
+"run_jump_animation_start": 0.08,
+"run_reference_speed": 3.84,
+"sprint_animation": &"",
+"strafe_left_animation": &"GS/Strafe_L",
+"strafe_right_animation": &"GS/Strafe_R",
+"walk_animation": &"GS/Walk",
+"walk_reference_speed": 0.97,
+"walk_to_run_speed": 2.0
+}
+reaction_overrides = {
+"heavy_animation": &"GS/Impact",
+"light_animation": &"GS/Impact_2"
+}
+character_overrides = {
+"move_speed": 5.0,
+"sprint_speed": 6.5,
+"walk_speed": 1.2
+}

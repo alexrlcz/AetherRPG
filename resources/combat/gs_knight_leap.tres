@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Knight Leap"
+weight = 1
+damage = 22
+windup = 1.0
+strike_duration = 0.22
+recovery = 1.1
+animation = &"GS/Jump_Attack"
+anim_strike_start = 1.03
+anim_strike_end = 1.27
+move_cancel = -1.0
+root_motion = true
+root_motion_scale = 1.4
+hitstop = 0.1
+camera_shake = 0.5
+knockback = 7.0
+hitstun = 0.6
+stagger = 40.0
+knockdown = true
+impact_scale = 1.4

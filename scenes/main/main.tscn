@@ -24,8 +24,26 @@ script = ExtResource("40_hitstop")
 
 [node name="Enemies" type="Node3D" parent="." unique_id=1689111946]
 
-[node name="EnemyKnight" parent="Enemies" unique_id=407595697 instance=ExtResource("5_enemy")]
+[node name="KnightBossRoom" parent="Enemies" unique_id=407595697 instance=ExtResource("5_enemy")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0, 26.7)
+
+[node name="KnightWestHall" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -13)
+
+[node name="KnightNorthRoom" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -33)
+
+[node name="KnightCentralHall" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, -10)
+
+[node name="KnightEastRoom" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -13)
+
+[node name="KnightSouthHall" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 11)
+
+[node name="KnightSouthEastRoom" parent="Enemies" instance=ExtResource("5_enemy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 14)
 
 [node name="IsoCameraRig" parent="." unique_id=2066421102 instance=ExtResource("3_camera")]
 target_path = NodePath("../Player")
@@ -39,8 +57,9 @@ enemy_scene = ExtResource("5_enemy")
 container = NodePath("../Enemies")
 avoid = NodePath("../Player")
 
-[node name="DebugMenu" parent="." unique_id=1268275517 node_paths=PackedStringArray("spawner", "player_health", "enemies", "player_appearance") instance=ExtResource("8_debug")]
+[node name="DebugMenu" parent="." unique_id=1268275517 node_paths=PackedStringArray("spawner", "player_health", "enemies", "player_appearance", "player_weapon") instance=ExtResource("8_debug")]
 spawner = NodePath("../EnemySpawner")
 player_health = NodePath("../Player/HealthComponent")
 enemies = NodePath("../Enemies")
 player_appearance = NodePath("../Player/Appearance")
+player_weapon = NodePath("../Player/Weapon")

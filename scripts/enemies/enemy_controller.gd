@@ -1,8 +1,12 @@
 class_name EnemyController
 extends CharacterBody3D
-## Melee enemy AI: idle (return home) -> chase -> telegraphed attack -> dead,
-## plus stagger: a staggering hit cancels whatever the enemy was doing and
-## the knockback/hitstun from `reaction` has priority until it recovers.
+## Melee enemy AI: idle (return home) -> chase -> attack -> dead, plus
+## stagger: a staggering hit cancels whatever the enemy was doing and the
+## knockback/hitstun from `reaction` has priority until it recovers.
+##
+## Attacks come from the equipped weapon (`weapon`, WeaponComponent): the
+## basic swing within `attack_range`, and the optional dash attack, a gap
+## closer from mid range on `stats.dash_cooldown`.
 ##
 ## Targets the first node in the "player" group. Movement uses a
 ## NavigationAgent3D on the baked navigation mesh. Numbers come from `stats`.
@@ -15,8 +19,10 @@ enum State { IDLE, CHASE, ATTACK, STAGGER, DEAD }
 @export var health: HealthComponent
 @export var nav_agent: NavigationAgent3D
 @export var hurtbox: HurtboxComponent
-## Runs the telegraphed attack; its timing and damage are set from `stats`.
+## Runs the attacks.
 @export var melee: MeleeAttackComponent
+## Supplies the attacks (see _on_weapon_equipped()).
+@export var weapon: WeaponComponent
 ## Optional: hit reactions (hitstun, knockback, poise).
 @export var reaction: HitReactionComponent
 
@@ -42,6 +48,14 @@ var _repath_timer: float = 0.0
 var _last_seen_position: Vector3
 var _unseen_time: float = 0.0
 var _home: Vector3
+var _dash_cooldown_left: float = 0.0
+
+## From the equipped weapon.
+var attack_profile: AttackProfile
+var attack_range: float = 1.7
+var dash_attack: AttackProfile
+var dash_min_range: float = 3.0
+var dash_max_range: float = 5.0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
@@ -49,10 +63,10 @@ func _ready() -> void:
 	health.max_health = stats.max_health
 	health.died.connect(_on_died)
 	health.damaged.connect(_on_damaged)
-	melee.damage = stats.attack_damage
-	melee.windup = stats.attack_windup
-	melee.strike_duration = stats.attack_strike_duration
-	melee.recovery = stats.attack_recovery
+	if weapon:
+		weapon.equipped.connect(_on_weapon_equipped)
+		if weapon.current:
+			_on_weapon_equipped(weapon.current)
 	if reaction:
 		reaction.poise = stats.poise
 		reaction.knockback_scale = stats.knockback_scale
@@ -65,6 +79,7 @@ func _physics_process(delta: float) -> void:
 	if target == null or not is_instance_valid(target):
 		target = get_tree().get_first_node_in_group("player") as Node3D
 
+	_dash_cooldown_left -= delta
 	var move_dir := Vector3.ZERO
 	match state:
 		State.IDLE:
@@ -80,6 +95,12 @@ func _physics_process(delta: float) -> void:
 		reaction.armored = state == State.ATTACK 			and melee.phase != MeleeAttackComponent.Phase.RECOVERY
 
 	_apply_movement(move_dir, delta)
+	if state == State.ATTACK:
+		# The attack's own forward step (the dash attack's lunge).
+		var forward := -global_basis.z
+		var lunge := melee.lunge_speed()
+		velocity.x += forward.x * lunge
+		velocity.z += forward.z * lunge
 	_apply_rotation(delta)
 	move_and_slide()
 
@@ -107,8 +128,12 @@ func _process_chase(delta: float) -> Vector3:
 			_set_state(State.IDLE)
 			return Vector3.ZERO
 		return _navigate_to(_last_seen_position)
-	if _distance_to_target() <= stats.attack_range:
+	if _distance_to_target() <= attack_range:
 		_start_attack()
+		return Vector3.ZERO
+	if _can_dash():
+		_start_attack(dash_attack)
+		_dash_cooldown_left = stats.dash_cooldown
 		return Vector3.ZERO
 	_repath_timer -= delta
 	if _repath_timer <= 0.0:
@@ -135,14 +160,33 @@ func can_see_target() -> bool:
 	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
-func _start_attack() -> void:
+## Starts `profile`, or the weapon's basic swing when null.
+func _start_attack(profile: AttackProfile = null) -> void:
+	if profile == null:
+		profile = attack_profile
 	# Lock facing at the start so the player can sidestep the blow.
 	var to_target := _flat(target.global_position - global_position)
 	if to_target.length_squared() > 0.0001:
 		facing_direction = to_target.normalized()
 		rotation.y = _yaw_for(facing_direction)
-	if melee.start():
+	if melee.start(profile):
 		_set_state(State.ATTACK)
+
+
+func _can_dash() -> bool:
+	if dash_attack == null or _dash_cooldown_left > 0.0:
+		return false
+	var distance := _distance_to_target()
+	return distance >= dash_min_range and distance <= dash_max_range
+
+
+func _on_weapon_equipped(new_weapon: WeaponDefinition) -> void:
+	melee.cancel()
+	attack_profile = new_weapon.enemy_attack
+	attack_range = new_weapon.enemy_attack_range
+	dash_attack = new_weapon.enemy_dash_attack
+	dash_min_range = new_weapon.enemy_dash_min_range
+	dash_max_range = new_weapon.enemy_dash_max_range
 
 
 func _process_attack() -> void:
@@ -191,7 +235,7 @@ func _apply_movement(move_dir: Vector3, delta: float) -> void:
 func _apply_rotation(delta: float) -> void:
 	if state == State.ATTACK or state == State.STAGGER or state == State.DEAD:
 		return
-	if state == State.CHASE and _target_alive() and _distance_to_target() <= stats.attack_range * 1.5:
+	if state == State.CHASE and _target_alive() and _distance_to_target() <= attack_range * 1.5:
 		facing_direction = _flat(target.global_position - global_position).normalized()
 	rotation.y = lerp_angle(rotation.y, _yaw_for(facing_direction), 1.0 - exp(-stats.turn_speed * delta))
 
@@ -213,10 +257,14 @@ func _on_died() -> void:
 	hurtbox.set_deferred("monitorable", false)
 
 
-func _on_staggered(_event: HitEvent) -> void:
+func _on_staggered(event: HitEvent) -> void:
 	if state == State.DEAD:
 		return
 	melee.cancel()
+	if reaction.is_knocked_down() and event.direction != Vector3.ZERO:
+		# Face the attacker: the knockdown clip falls backwards.
+		facing_direction = -event.direction
+		rotation.y = _yaw_for(facing_direction)
 	_set_state(State.STAGGER)
 
 

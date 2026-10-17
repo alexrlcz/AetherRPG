@@ -24,6 +24,7 @@ camera_shake = 0.55
 knockback = 7.5
 hitstun = 0.6
 stagger = 40.0
+knockdown = true
 ragdoll_force = 1.6
 impact_scale = 1.5
 impact_color = Color(1, 0.62, 0.3, 1)

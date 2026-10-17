@@ -56,6 +56,17 @@ func _ready() -> void:
 	_snapshot()
 
 
+## Re-reads the CollisionShape3D children after their shapes or transforms
+## changed (a different weapon was equipped).
+func refresh_shapes() -> void:
+	_shapes.clear()
+	_query_shapes.clear()
+	for child in get_children():
+		if child is CollisionShape3D:
+			_shapes.append(child)
+	_snapshot()
+
+
 func set_active(value: bool) -> void:
 	active = value
 	_closes_in = 0

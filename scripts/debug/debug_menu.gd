@@ -2,7 +2,7 @@ class_name DebugMenu
 extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
-## The panel also edits the player's appearance live (not saved).
+## The panel also edits the player's appearance and weapon live (not saved).
 
 @export var spawner: EnemySpawner
 @export var player_health: HealthComponent
@@ -10,6 +10,10 @@ extends CanvasLayer
 @export var enemies: Node
 ## Edited by the appearance controls; works on a copy of its resource.
 @export var player_appearance: AppearanceComponent
+## The player's weapon, swapped by the weapon option.
+@export var player_weapon: WeaponComponent
+## Weapons offered in the weapon option.
+@export var player_weapons: Array[WeaponDefinition] = []
 
 @onready var _panel: Control = %Panel
 @onready var _count_label: Label = %EnemyCount
@@ -24,7 +28,8 @@ func _ready() -> void:
 	%HealButton.pressed.connect(heal_player)
 	%KillButton.pressed.connect(kill_all_enemies)
 	_setup_appearance_controls()
-	# Mouse-only: a focused button would swallow Space (dodge) as ui_accept.
+	_setup_weapon_control()
+	# Mouse-only: a focused button would swallow Space (jump) as ui_accept.
 	for button in _panel.find_children("*", "BaseButton", true, false):
 		(button as BaseButton).focus_mode = Control.FOCUS_NONE
 
@@ -63,6 +68,22 @@ func _alive_enemies() -> Array[HealthComponent]:
 		if health and not health.is_dead:
 			result.append(health)
 	return result
+
+
+## Equips `player_weapons[index]` on the player.
+func equip_player_weapon(index: int) -> void:
+	if player_weapon and index >= 0 and index < player_weapons.size():
+		player_weapon.equip(player_weapons[index])
+
+
+func _setup_weapon_control() -> void:
+	var option: OptionButton = %WeaponOption
+	option.clear()
+	for w in player_weapons:
+		option.add_item(w.display_name)
+	if player_weapon:
+		option.select(maxi(player_weapons.find(player_weapon.current), 0))
+	option.item_selected.connect(equip_player_weapon)
 
 
 # --- Appearance -------------------------------------------------------------

@@ -27,12 +27,7 @@ extends Resource
 @export var lose_sight_time: float = 3.0
 
 @export_group("Attack")
-## Starts an attack when the target is within this distance.
-@export var attack_range: float = 1.7
-@export var attack_damage: int = 15
-## Telegraph time before the blow lands.
-@export var attack_windup: float = 0.7
-## How long the hitbox is live.
-@export var attack_strike_duration: float = 0.12
-## Pause after the blow before the enemy can act again.
-@export var attack_recovery: float = 0.9
+## Seconds between dash attacks (counted from the start of the last one).
+## The attacks themselves (swing, range, dash) come from the enemy's weapon
+## (WeaponDefinition).
+@export var dash_cooldown: float = 5.0

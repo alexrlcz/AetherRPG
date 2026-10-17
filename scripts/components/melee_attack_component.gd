@@ -115,9 +115,12 @@ func cancel() -> void:
 	_enter(Phase.READY)
 
 
-## Forward speed (m/s) the owner should move at right now for the attack's
-## lunge; 0 outside the lunge or once the attack has connected.
+## Forward speed (m/s) the owner should move at right now: the clip's root
+## motion for `root_motion` attacks, else the lunge (0 outside it or once the
+## attack has connected).
 func lunge_speed() -> float:
+	if current != null and current.root_motion:
+		return _root_motion_speed()
 	if current == null or current.lunge_distance <= 0.0 or has_hit:
 		return 0.0
 	var lead := minf(current.lunge_lead, current.windup)
@@ -126,6 +129,23 @@ func lunge_speed() -> float:
 	if not in_lunge:
 		return 0.0
 	return current.lunge_distance / maxf(lead + current.strike_duration, 0.01)
+
+
+## The clip's forward travel rate at the current animation position, times
+## the playback speed. 0 when the clip has no root motion or isn't playing
+## (e.g. its follow-through was cut).
+func _root_motion_speed() -> float:
+	if animator == null or phase == Phase.READY or animator.current_action() != current.animation:
+		return 0.0
+	var anim := animator.animation_player.get_animation(current.animation)
+	var curve: PackedFloat32Array = anim.get_meta(&"root_motion", PackedFloat32Array())
+	if curve.size() < 2:
+		return 0.0
+	var fps: float = anim.get_meta(&"root_motion_fps", 30.0)
+	var frame := clampf(animator.get_action_position() * fps, 0.0, curve.size() - 1.001)
+	var i := int(frame)
+	return (curve[i + 1] - curve[i]) * fps * animator.animation_player.speed_scale \
+		* current.root_motion_scale
 
 
 func _begin(profile: AttackProfile, chained: bool) -> void:

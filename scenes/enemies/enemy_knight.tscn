@@ -15,7 +15,10 @@
 [ext_resource type="Script" path="res://scripts/characters/occlusion_silhouette.gd" id="23_silhouette"]
 [ext_resource type="Script" path="res://scripts/characters/appearance_component.gd" id="24_appearance"]
 [ext_resource type="Resource" path="res://resources/enemies/ashbound_knight_appearance.tres" id="25_look"]
-[ext_resource type="PackedScene" path="res://assets/equipment/Club.fbx" id="10_club"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_component.gd" id="28_weapon"]
+[ext_resource type="Resource" path="res://resources/weapons/club.tres" id="29_club"]
+[ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="30_greatsword"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="31_definition"]
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
 [ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="26_reaction"]
 [ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="27_feedback"]
@@ -25,16 +28,7 @@ radius = 0.4
 height = 1.8
 
 [sub_resource type="BoxShape3D" id="Shape_attack"]
-size = Vector3(1.4, 1.6, 1.6)
-
-[sub_resource type="StandardMaterial3D" id="Mat_telegraph"]
-transparency = 1
-shading_mode = 0
-albedo_color = Color(1, 0.15, 0.1, 0.45)
-
-[sub_resource type="PlaneMesh" id="Mesh_telegraph"]
-material = SubResource("Mat_telegraph")
-size = Vector2(1.4, 1.6)
+size = Vector3(0.28, 0.28, 0.62)
 
 [sub_resource type="ShaderMaterial" id="Mat_bar"]
 render_priority = 1
@@ -44,7 +38,7 @@ shader = ExtResource("8_bar_shader")
 material = SubResource("Mat_bar")
 size = Vector2(1.0, 0.13)
 
-[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "reaction") groups=["enemies"]]
+[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "weapon", "reaction") groups=["enemies"]]
 collision_layer = 4
 collision_mask = 3
 script = ExtResource("1_ctrl")
@@ -53,6 +47,7 @@ health = NodePath("HealthComponent")
 nav_agent = NodePath("NavigationAgent3D")
 hurtbox = NodePath("Hurtbox")
 melee = NodePath("MeleeAttack")
+weapon = NodePath("Weapon")
 reaction = NodePath("HitReaction")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -63,9 +58,6 @@ shape = SubResource("Shape_body")
 
 [node name="Model" parent="Visual" instance=ExtResource("9_knight")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
-
-[node name="Club" parent="Visual/Model/Armature/Skeleton3D/RightHand" instance=ExtResource("10_club")]
-transform = Transform3D(0, 0, 0.3, 0.3, 0, 0, 0, 0.3, 0, -0.03, 0.085, 0)
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
 path_desired_distance = 0.5
@@ -88,23 +80,16 @@ health = NodePath("../HealthComponent")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("Shape_body")
 
-[node name="AttackHitbox" type="Area3D" parent="."]
+[node name="AttackHitbox" type="Area3D" parent="Visual/Model/Armature/Skeleton3D/RightHand"]
 collision_layer = 0
 collision_mask = 8
 monitorable = false
 script = ExtResource("5_hitbox")
+sweep = true
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="AttackHitbox"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -1)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.03, 0.085, 0.33)
 shape = SubResource("Shape_attack")
-
-[node name="Telegraph" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.2)
-
-[node name="Mesh" type="MeshInstance3D" parent="Telegraph"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.8)
-cast_shadow = 0
-mesh = SubResource("Mesh_telegraph")
 
 [node name="HealthBar" type="MeshInstance3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.15, 0)
@@ -120,13 +105,14 @@ health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 death_animation = &""
 
-[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "telegraph")]
+[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator")]
 script = ExtResource("11_melee")
-hitbox = NodePath("../AttackHitbox")
+hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
 animator = NodePath("../Animator")
-telegraph = NodePath("../Telegraph")
 animation = &"Sword_Attack"
 animation_strike_time = 0.37
+animation_strike_end = 0.5
+animation_recovery_end = 1.0
 
 [node name="Ragdoll" type="Node" parent="." node_paths=PackedStringArray("health", "simulator", "animation_player", "body", "hurtbox")]
 script = ExtResource("20_ragdoll")
@@ -172,4 +158,15 @@ root = NodePath("../Visual")
 color = Color(1, 0.3, 0.25, 0.5)
 health = NodePath("../HealthComponent")
 
+[node name="Weapon" type="Node" parent="." node_paths=PackedStringArray("hand", "hitbox", "animator", "reaction")]
+script = ExtResource("28_weapon")
+weapon = ExtResource("29_club")
+random_weapons = Array[ExtResource("31_definition")]([ExtResource("29_club"), ExtResource("30_greatsword")])
+hand = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand")
+hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
+animator = NodePath("../Animator")
+reaction = NodePath("../HitReaction")
+ignored_overrides = Array[StringName]([&"idle_variants"])
+
 [connection signal="applied" from="Appearance" to="OcclusionSilhouette" method="refresh"]
+[connection signal="equipped" from="Weapon" to="OcclusionSilhouette" method="refresh" unbinds=1]

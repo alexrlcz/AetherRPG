@@ -9,6 +9,11 @@ extends Node
 ##   flinch (lean + a little knockback) until their AttackProfile.stagger adds
 ##   up past `poise`; then the hit staggers and `staggered` asks the owner to
 ##   cancel its action. Unarmoured, every attack staggers.
+## - Knockdown: a staggering hit whose AttackProfile has `knockdown` throws
+##   the character down (`knockdown_animation`, which ends lying on its back),
+##   then it gets up (`get_up_animation`). The whole sequence is the hitstun.
+##   Hits while down still deal damage but don't restart it; with
+##   `knockdown_invulnerable` the hurtbox ignores them until it is up.
 ## - Hits without an AttackProfile (hazards) and lethal hits never stagger;
 ##   the ragdoll takes over on death.
 
@@ -34,6 +39,15 @@ signal recovered
 ## Knockback deceleration (m/s²).
 @export var knockback_friction: float = 18.0
 
+@export_group("Knockdown")
+@export var knockdown_animation: StringName = &"UAL2/Hit_Knockback"
+## Starts from the lying pose `knockdown_animation` ends in.
+@export var get_up_animation: StringName = &"UAL2/LayToIdle"
+@export var knockdown_speed: float = 1.0
+@export var get_up_speed: float = 1.3
+## Ignore hits while knocked down (sets HurtboxComponent.invulnerable).
+@export var knockdown_invulnerable: bool = false
+
 @export_group("Poise")
 ## Set by the owner while it should resist interruption.
 @export var armored: bool = false
@@ -55,6 +69,7 @@ var knockback_velocity: Vector3 = Vector3.ZERO
 var poise_damage: float = 0.0
 
 var _stun_left: float = 0.0
+var _knocked_down: bool = false
 var _since_hit: float = 0.0
 var _lean_axis: Vector3 = Vector3.RIGHT
 var _lean: float = 0.0
@@ -75,10 +90,26 @@ func is_reacting() -> bool:
 	return _stun_left > 0.0
 
 
+## True from a knockdown hit until the character is back on its feet.
+func is_knocked_down() -> bool:
+	return _knocked_down
+
+
+## Seconds a knockdown lasts (fall + get-up), or 0 if its clips are missing.
+func knockdown_duration() -> float:
+	if not _has_knockdown_clips():
+		return 0.0
+	var anims := animator.animation_player
+	return anims.get_animation(knockdown_animation).length / maxf(knockdown_speed, 0.01) \
+		+ anims.get_animation(get_up_animation).length / maxf(get_up_speed, 0.01)
+
+
 func _on_hit_received(event: HitEvent) -> void:
 	if _dead or event.lethal:
 		return
 	_since_hit = 0.0
+	if _knocked_down:
+		return  # Already down: the damage lands, the reaction doesn't restart.
 	var profile := event.profile
 	if profile == null:
 		_kick_lean(event.direction, light_lean_degrees * 0.5)
@@ -96,6 +127,9 @@ func _on_hit_received(event: HitEvent) -> void:
 		return
 	poise_damage = 0.0
 	knockback_velocity = event.direction * profile.knockback * knockback_scale
+	if profile.knockdown and _has_knockdown_clips():
+		_knock_down(event)
+		return
 	_stun_left = maxf(_stun_left, profile.hitstun * hitstun_scale)
 	_kick_lean(event.direction, lean)
 	var anim := heavy_animation if profile.is_heavy() else light_animation
@@ -103,6 +137,24 @@ func _on_hit_received(event: HitEvent) -> void:
 		var length := animator.animation_player.get_animation(anim).length
 		animator.play_action(anim, clampf(length / maxf(_stun_left, 0.05), 0.75, 2.0))
 	staggered.emit(event)
+
+
+func _knock_down(event: HitEvent) -> void:
+	_knocked_down = true
+	_stun_left = knockdown_duration()
+	animator.play_action(knockdown_animation, knockdown_speed)
+	animator.queue_action(get_up_animation, get_up_speed)
+	staggered.emit(event)
+	# After the signal: owners cancel their dodge there, which clears i-frames.
+	if knockdown_invulnerable and hurtbox:
+		hurtbox.invulnerable = true
+
+
+func _has_knockdown_clips() -> bool:
+	if animator == null or knockdown_animation == &"" or get_up_animation == &"":
+		return false
+	var anims := animator.animation_player
+	return anims.has_animation(knockdown_animation) and anims.has_animation(get_up_animation)
 
 
 func _physics_process(delta: float) -> void:
@@ -114,8 +166,13 @@ func _physics_process(delta: float) -> void:
 		_stun_left -= delta
 		if _stun_left <= 0.0:
 			_stun_left = 0.0
-			if animator and animator.current_action() in [light_animation, heavy_animation]:
+			if animator and animator.current_action() in [light_animation, heavy_animation,
+					knockdown_animation, get_up_animation]:
 				animator.stop_action()
+			if _knocked_down:
+				_knocked_down = false
+				if knockdown_invulnerable and hurtbox:
+					hurtbox.invulnerable = false
 			recovered.emit()
 
 
@@ -153,4 +210,5 @@ func _on_died() -> void:
 	# The ragdoll owns the body now; leave the visual where it is.
 	_dead = true
 	_stun_left = 0.0
+	_knocked_down = false
 	knockback_velocity = Vector3.ZERO

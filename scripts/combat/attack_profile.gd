@@ -52,6 +52,13 @@ enum Weight { LIGHT, HEAVY }
 @export var lunge_distance: float = 0.0
 ## Part of the wind-up (s) the lunge starts before the strike.
 @export var lunge_lead: float = 0.08
+## Move the body by the clip's own travel (its "root_motion" metadata, from
+## tools/build_mixamo_library.gd) through every phase, instead of the lunge.
+## Follows the playback speed, so phase timings never change the distance.
+@export var root_motion: bool = false
+## Multiplier on the root motion distance (e.g. a longer leap). Best kept
+## near 1 for moves with the feet planted, or they visibly slide.
+@export var root_motion_scale: float = 1.0
 
 @export_group("Impact")
 ## Real-time freeze on a confirmed hit (s).
@@ -64,6 +71,9 @@ enum Weight { LIGHT, HEAVY }
 @export var hitstun: float = 0.3
 ## Poise damage: armoured victims stagger once it adds up past their poise.
 @export var stagger: float = 10.0
+## A hit that staggers knocks the victim down instead (thrown back, lies,
+## gets up; see HitReactionComponent). Its hitstun is the knockdown's length.
+@export var knockdown: bool = false
 ## Multiplier on the victim's ragdoll fling when this hit is lethal.
 @export var ragdoll_force: float = 1.0
 ## Visual size of the impact effect.
