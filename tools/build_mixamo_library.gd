@@ -5,7 +5,9 @@ extends SceneTree
 ##
 ## Run:  godot --headless --path . -s res://tools/build_mixamo_library.gd [-- <source dir>]
 ## The source FBX files (Mixamo, "Without Skin", Y Bot skeleton) are read from
-## SOURCE_DIR at build time and are not part of the project.
+## SOURCE_DIR at build time and are not part of the project. Clips whose source
+## file is not in the directory are kept from the existing library, so new
+## clips can be added without the original downloads.
 ##
 ## Retargeting: both skeletons rest in a T-pose, Y up, facing +Z, in metres,
 ## so each mapped bone gets the source bone's world-space rotation away from
@@ -27,6 +29,8 @@ const SOURCE_PREFIX := "mixamorig_"
 
 ## Output clip name -> source file. The character faces +Z, so its left is +X.
 const CLIPS := {
+	"Jog_Fwd_L": "Jog Forward Diagonal.fbx",        # travels forward and to the left
+	"Jog_Fwd_R": "Jog Forward Diagonal (1).fbx",    # travels forward and to the right
 	"Jog_Bwd": "Jog Backward.fbx",
 	"Jog_Bwd_L": "Jog Backward Diagonal.fbx",       # travels back and to the left
 	"Jog_Bwd_R": "Jog Backward Diagonal (1).fbx",   # travels back and to the right
@@ -46,8 +50,17 @@ func _initialize() -> void:
 	var tgt_skel: Skeleton3D = target.find_children("*", "Skeleton3D", true, false)[0]
 
 	var library := AnimationLibrary.new()
+	var existing: AnimationLibrary = load(OUTPUT) if ResourceLoader.exists(OUTPUT) else null
 	for clip_name: String in CLIPS:
 		var path := source_dir.path_join(CLIPS[clip_name])
+		if not FileAccess.file_exists(path):
+			if existing and existing.has_animation(clip_name):
+				library.add_animation(clip_name, existing.get_animation(clip_name))
+				print("%s: kept from existing library (%s not found)" % [clip_name, CLIPS[clip_name]])
+				continue
+			push_error("cannot find %s and no existing clip '%s'" % [path, clip_name])
+			quit(1)
+			return
 		var doc := FBXDocument.new()
 		var state := FBXState.new()
 		var err := doc.append_from_file(path, state)
@@ -60,10 +73,11 @@ func _initialize() -> void:
 		await process_frame  # The AnimationPlayer only applies poses once it has processed.
 		var src_skel: Skeleton3D = source.find_children("*", "Skeleton3D", true, false)[0]
 		var player: AnimationPlayer = source.find_children("*", "AnimationPlayer", true, false)[0]
-		var anim := _retarget(src_skel, player, player.get_animation_list()[0], tgt_skel)
+		var anim := _retarget(src_skel, player, _main_take(player), tgt_skel)
 		library.add_animation(clip_name, anim)
-		print("%s <- %s: %.2f s, reference speed %.2f m/s" % [
-			clip_name, CLIPS[clip_name], anim.length, anim.get_meta("reference_speed")])
+		print("%s <- %s: %.2f s, reference speed %.2f m/s, travel %s (+Z forward, +X left)" % [
+			clip_name, CLIPS[clip_name], anim.length, anim.get_meta("reference_speed"),
+			anim.get_meta("travel_direction")])
 		source.free()
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT.get_base_dir()))
@@ -112,6 +126,7 @@ func _retarget(src_skel: Skeleton3D, player: AnimationPlayer, anim_name: StringN
 	out.length = length
 	out.loop_mode = Animation.LOOP_LINEAR
 	out.set_meta("reference_speed", travel.length() / length * ratio)
+	out.set_meta("travel_direction", travel.normalized())
 	var rot_track := {}
 	for b in tgt_skel.get_bone_count():
 		var t := out.add_track(Animation.TYPE_ROTATION_3D)
@@ -144,6 +159,19 @@ func _retarget(src_skel: Skeleton3D, player: AnimationPlayer, anim_name: StringN
 		var offset := hips_pos - hips_rest - travel * (time / length)
 		out.position_track_insert_key(pelvis_track, time, pelvis_rest + root_basis_inv * (offset * ratio))
 	return out
+
+
+## The take with the most tracks. "With Skin" downloads also carry an empty
+## "Take 001" ahead of the actual clip.
+func _main_take(player: AnimationPlayer) -> StringName:
+	var best: StringName = &""
+	var best_tracks := -1
+	for anim_name in player.get_animation_list():
+		var tracks := player.get_animation(anim_name).get_track_count()
+		if tracks > best_tracks:
+			best = anim_name
+			best_tracks = tracks
+	return best
 
 
 func _sample_hips(player: AnimationPlayer, skel: Skeleton3D, hips: int, time: float) -> Vector3:

@@ -176,27 +176,33 @@ func test_directional_locomotion() -> void:
 	player.lock_on.toggle()
 	await ticks(20)
 	var ap: AnimationPlayer = player.get_node("Visual/Model/AnimationPlayer")
-	for action in ["move_forward", "move_left", "move_right", "move_back"]:
-		Input.action_press(action)
+	for actions in [["move_forward"], ["move_forward", "move_left"], ["move_forward", "move_right"],
+			["move_left"], ["move_right"], ["move_back"]]:
+		var action := "+".join(actions)
+		for a: String in actions:
+			Input.action_press(a)
 		await ticks(45)
 		var v := Vector3(player.velocity.x, 0, player.velocity.z)
 		var forward := -player.global_basis.z
 		var angle := rad_to_deg(atan2(v.dot(player.global_basis.x), v.dot(forward)))
 		var anim := ap.current_animation
-		var expected := ""
-		if absf(angle) < 55.0:
-			expected = "Jog_Fwd"
-		elif absf(angle) < 115.0:
-			expected = "MX/Strafe_R" if angle > 0.0 else "MX/Strafe_L"
-		elif absf(angle) < 160.0:
-			expected = "MX/Jog_Bwd_R" if angle > 0.0 else "MX/Jog_Bwd_L"
-		else:
-			expected = "MX/Jog_Bwd"
-		check(anim == expected, "%s: moving %.0f° off facing plays %s (got %s)" % [action, angle, expected, anim])
-		if absf(angle) > 60.0:
+		# Near a sector boundary the animator's hysteresis may keep the
+		# neighbouring clip.
+		var hysteresis: float = player.get_node("Animator").direction_hysteresis
+		var expected := _directional_clip(angle)
+		var allowed := [expected, _directional_clip(angle - hysteresis * signf(angle)),
+			_directional_clip(angle + hysteresis * signf(angle))]
+		check(anim in allowed, "%s: moving %.0f° off facing plays %s (got %s)" % [action, angle, expected, anim])
+		if absf(angle) > 30.0:
 			check(v.length() < player.move_speed * 0.7,
 				"%s: slower than full speed (%.2f m/s)" % [action, v.length()])
-		Input.action_release(action)
+		if anim.begins_with("MX/"):
+			# The cycle's feet should keep up with the body (no skating).
+			var covered: float = ap.get_animation(anim).get_meta(&"reference_speed") * ap.speed_scale
+			check(absf(covered - v.length()) < 0.35,
+				"%s: cycle covers %.2f m/s, body moves %.2f m/s" % [action, covered, v.length()])
+		for a: String in actions:
+			Input.action_release(a)
 		await ticks(20)
 	check(_facing_dot(player, enemy) > 0.95, "kept facing the target throughout")
 	player.lock_on.release()
@@ -209,6 +215,22 @@ func test_directional_locomotion() -> void:
 
 
 # --- Helpers -----------------------------------------------------------------
+
+## The clip CharacterAnimator plays for moving `angle` degrees off the facing
+## (positive = to the right) while strafing.
+func _directional_clip(angle: float) -> String:
+	var off := absf(angle)
+	var right := angle > 0.0
+	if off < 22.5:
+		return "Jog_Fwd"
+	if off < 67.5:
+		return "MX/Jog_Fwd_R" if right else "MX/Jog_Fwd_L"
+	if off < 115.0:
+		return "MX/Strafe_R" if right else "MX/Strafe_L"
+	if off < 160.0:
+		return "MX/Jog_Bwd_R" if right else "MX/Jog_Bwd_L"
+	return "MX/Jog_Bwd"
+
 
 func _face(player: PlayerController, dir: Vector3) -> void:
 	player.facing_direction = dir

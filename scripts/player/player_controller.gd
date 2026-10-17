@@ -20,6 +20,11 @@ extends CharacterBody3D
 ##   toward the attack direction (target or cursor), then facing locks; the
 ##   only movement is the attack's lunge. Late in recovery
 ##   (AttackProfile.move_cancel) movement input ends the attack.
+## - "dodge" (Space) rolls (`dodge`) toward the WASD direction, or toward the
+##   cursor with no direction held. It can cut into an attack's recovery but
+##   not its wind-up or strike; presses are buffered like attacks. During the
+##   roll the character is committed (facing locked, other input buffered);
+##   movement or a buffered attack cuts the get-up recovery short.
 ## - A staggering hit (`reaction`) interrupts everything for its hitstun.
 
 signal aim_started
@@ -43,9 +48,11 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 ## How quickly the character turns toward its facing direction.
 @export var turn_speed: float = 11.0
 ## Speed multipliers while strafing (aiming or locked on), by direction
-## relative to the facing: straight sideways and straight backwards, blended
-## in between; forward (within 45°) is full speed. They keep the body at a
-## pace the strafe / backpedal cycles can match without skating. 1 = off.
+## relative to the facing: forward diagonal (45°), straight sideways and
+## straight backwards, blended in between; straight ahead is full speed. They
+## keep the body at a pace the directional cycles can match without skating.
+## 1 = off.
+@export var diagonal_speed_multiplier: float = 0.65
 @export var strafe_speed_multiplier: float = 0.6
 @export var backpedal_speed_multiplier: float = 0.55
 @export_group("Combat")
@@ -60,6 +67,7 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 @export var attack_turn_speed: float = 22.0
 @export var reaction: HitReactionComponent
 @export var lock_on: LockOnComponent
+@export var dodge: DodgeComponent
 @export_group("")
 ## When this reaches zero, player input is disabled.
 @export var health: HealthComponent
@@ -79,6 +87,7 @@ var aim_override: Vector3 = Vector3.ZERO
 var _attack_held: bool = false
 var _buffered: AttackInput = AttackInput.NONE
 var _buffer_left: float = 0.0
+var _dodge_buffer_left: float = 0.0
 ## Index in `light_combo` of the next light attack.
 var _combo_step: int = 0
 ## Horizontal unit vector the character is turning toward.
@@ -107,10 +116,13 @@ func _physics_process(delta: float) -> void:
 	# attack's chain_delay is; earlier presses expire.
 	var awaiting_chain := melee != null \
 		and melee.phase == MeleeAttackComponent.Phase.RECOVERY and not melee.can_chain()
-	if not awaiting_chain:
+	# An attack pressed mid-roll waits for the roll to end.
+	var rolling := dodge != null and dodge.is_rolling()
+	if not awaiting_chain and not rolling:
 		_buffer_left -= delta
 	if _buffer_left <= 0.0:
 		_buffered = AttackInput.NONE
+	_dodge_buffer_left -= delta
 
 	if reaction and melee:
 		# Hyper armour while winding up and swinging; recovery is punishable.
@@ -118,21 +130,24 @@ func _physics_process(delta: float) -> void:
 	var reacting := reaction != null and reaction.is_reacting()
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var move_dir := _camera_relative_direction(input)
-	if melee and not reacting:
+	if dodge and not reacting:
+		_update_dodge(move_dir)
+	var dodging := dodge != null and dodge.is_dodging()
+	if melee and not reacting and not dodging:
 		if move_dir != Vector3.ZERO and _buffered == AttackInput.NONE and melee.can_move_cancel():
 			melee.end_recovery()
 		_update_attacks()
 	var attacking := melee != null and melee.is_busy()
 	var winding_up := attacking and melee.phase == MeleeAttackComponent.Phase.WINDUP
 
-	if attacking or reacting:
-		move_dir = Vector3.ZERO  # Committed: only lunge / knockback move the body.
+	if attacking or reacting or dodging:
+		move_dir = Vector3.ZERO  # Committed: only lunge / knockback / roll move the body.
 	if winding_up:
 		var aim_dir := _attack_aim()
 		if aim_dir != Vector3.ZERO:
 			facing_direction = aim_dir
-	elif attacking or reacting:
-		pass  # Facing stays locked through the strike, recovery and hitstun.
+	elif attacking or reacting or dodging:
+		pass  # Facing stays locked through the strike, recovery, hitstun and roll.
 	elif is_locked_on():
 		var target_dir := lock_on.direction_from(global_position)
 		if target_dir != Vector3.ZERO:
@@ -147,7 +162,11 @@ func _physics_process(delta: float) -> void:
 	if is_strafing and move_dir != Vector3.ZERO:
 		move_dir *= _strafe_speed_factor(move_dir)
 	_apply_movement(move_dir, delta)
-	if attacking:
+	if dodging:
+		var roll := dodge.current_velocity()
+		velocity.x = roll.x
+		velocity.z = roll.z
+	elif attacking:
 		var forward := -global_basis.z
 		var lunge := melee.lunge_speed()
 		velocity.x = forward.x * lunge
@@ -157,7 +176,7 @@ func _physics_process(delta: float) -> void:
 		velocity.z = reaction.knockback_velocity.z
 	if winding_up:
 		_apply_rotation(delta, attack_turn_speed)
-	elif not attacking and not reacting:
+	elif not attacking and not reacting and not dodging:
 		_apply_rotation(delta, turn_speed)
 	move_and_slide()
 
@@ -169,6 +188,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		request_attack(false)
 	elif event.is_action_pressed("heavy_attack"):
 		request_attack(true)
+	elif event.is_action_pressed("dodge"):
+		request_dodge()
 	elif event.is_action_pressed("lock_on"):
 		if lock_on and not is_dead:
 			lock_on.toggle()
@@ -190,6 +211,33 @@ func request_attack(heavy: bool) -> void:
 		return
 	_buffered = AttackInput.HEAVY if heavy else AttackInput.LIGHT
 	_buffer_left = input_buffer_time
+
+
+## Queues a dodge press; it starts as soon as the current state allows.
+func request_dodge() -> void:
+	if is_dead:
+		return
+	_dodge_buffer_left = input_buffer_time
+
+
+func _update_dodge(move_dir: Vector3) -> void:
+	if dodge.is_recovering() and (move_dir != Vector3.ZERO or _buffered != AttackInput.NONE
+			or _attack_held):
+		dodge.end_recovery()
+	if _dodge_buffer_left <= 0.0 or not dodge.is_ready():
+		return
+	if melee and melee.is_busy():
+		if melee.phase != MeleeAttackComponent.Phase.RECOVERY:
+			return  # Wind-up and strike are committed; the press stays buffered.
+		melee.end_recovery()
+	var dir := move_dir.normalized() if move_dir != Vector3.ZERO else _cursor_aim()
+	if dir == Vector3.ZERO:
+		dir = -global_basis.z
+	if not dodge.start(dir):
+		return
+	_dodge_buffer_left = 0.0
+	facing_direction = dodge.direction
+	rotation.y = atan2(-facing_direction.x, -facing_direction.z)  # Roll the way it goes.
 
 
 func _update_attacks() -> void:
@@ -256,7 +304,10 @@ func _on_attack_finished() -> void:
 func _on_staggered(_event: HitEvent) -> void:
 	if melee:
 		melee.cancel()
+	if dodge:
+		dodge.cancel()
 	_buffered = AttackInput.NONE
+	_dodge_buffer_left = 0.0
 	_combo_step = 0
 
 
@@ -264,6 +315,9 @@ func _on_died() -> void:
 	is_dead = true
 	_attack_held = false
 	_buffered = AttackInput.NONE
+	_dodge_buffer_left = 0.0
+	if dodge:
+		dodge.cancel()
 	# The body stays as an anchor but no longer blocks enemies.
 	collision_layer = 0
 	if melee:
@@ -374,9 +428,9 @@ func _apply_movement(move_dir: Vector3, delta: float) -> void:
 func _strafe_speed_factor(move_dir: Vector3) -> float:
 	var angle := rad_to_deg(facing_direction.angle_to(move_dir.normalized()))
 	if angle <= 45.0:
-		return 1.0
+		return lerpf(1.0, diagonal_speed_multiplier, angle / 45.0)
 	if angle <= 90.0:
-		return lerpf(1.0, strafe_speed_multiplier, (angle - 45.0) / 45.0)
+		return lerpf(diagonal_speed_multiplier, strafe_speed_multiplier, (angle - 45.0) / 45.0)
 	return lerpf(strafe_speed_multiplier, backpedal_speed_multiplier, (angle - 90.0) / 90.0)
 
 

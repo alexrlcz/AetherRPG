@@ -44,17 +44,21 @@ extends Node
 @export_group("Directional Locomotion")
 ## While the body reports `is_strafing` (facing decoupled from movement), the
 ## cycle is picked from the movement direction relative to the facing:
-## forward (walk/run above), strafe, backward diagonal or backward. Clips may
-## carry a "reference_speed" meta (m/s, see tools/build_mixamo_library.gd)
-## used instead of `run_reference_speed` for their playback rate. A missing
-## clip falls back to the forward cycle played in reverse.
+## forward (walk/run above), forward diagonal, strafe, backward diagonal or
+## backward. Clips may carry a "reference_speed" meta (m/s, see
+## tools/build_mixamo_library.gd) used instead of `run_reference_speed` for
+## their playback rate. A missing clip falls back to the forward cycle (played
+## in reverse when moving backwards).
+@export var forward_left_animation: StringName = &"MX/Jog_Fwd_L"
+@export var forward_right_animation: StringName = &"MX/Jog_Fwd_R"
 @export var strafe_left_animation: StringName = &"MX/Strafe_L"
 @export var strafe_right_animation: StringName = &"MX/Strafe_R"
 @export var backward_left_animation: StringName = &"MX/Jog_Bwd_L"
 @export var backward_right_animation: StringName = &"MX/Jog_Bwd_R"
 @export var backward_animation: StringName = &"MX/Jog_Bwd"
 ## Degrees away from the facing where each sector starts.
-@export var strafe_angle: float = 55.0
+@export var forward_diagonal_angle: float = 22.5
+@export var strafe_angle: float = 67.5
 @export var backward_diagonal_angle: float = 115.0
 @export var backward_angle: float = 160.0
 ## Degrees a direction must pass a sector boundary before the clip changes.
@@ -63,7 +67,8 @@ extends Node
 var _dead: bool = false
 var _action: StringName = &""
 var _queued: StringName = &""
-## Directional sector while strafing: 0 forward, 1 strafe, 2 back diagonal, 3 back.
+## Directional sector while strafing: 0 forward, 1 forward diagonal, 2 strafe,
+## 3 back diagonal, 4 back.
 var _sector: int = 0
 
 
@@ -133,10 +138,12 @@ func _directional_animation(horizontal: Vector3) -> StringName:
 	var anim: StringName = &""
 	match sector:
 		1:
-			anim = strafe_right_animation if to_right else strafe_left_animation
+			anim = forward_right_animation if to_right else forward_left_animation
 		2:
-			anim = backward_right_animation if to_right else backward_left_animation
+			anim = strafe_right_animation if to_right else strafe_left_animation
 		3:
+			anim = backward_right_animation if to_right else backward_left_animation
+		4:
 			anim = backward_animation
 	if anim != &"" and not animation_player.has_animation(anim):
 		return &""
@@ -144,13 +151,15 @@ func _directional_animation(horizontal: Vector3) -> StringName:
 
 
 func _sector_for(off: float) -> int:
-	if off < strafe_angle:
+	if off < forward_diagonal_angle:
 		return 0
-	if off < backward_diagonal_angle:
+	if off < strafe_angle:
 		return 1
-	if off < backward_angle:
+	if off < backward_diagonal_angle:
 		return 2
-	return 3
+	if off < backward_angle:
+		return 3
+	return 4
 
 
 func _uses_walk(speed: float) -> bool:

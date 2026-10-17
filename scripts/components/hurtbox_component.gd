@@ -9,8 +9,12 @@ signal hurt(amount: int, source: Node)
 ## Every hit that removed health, with its full details (reactions, effects).
 ## Emitted after HealthComponent's signals, so `event.lethal` is final.
 signal hit_received(event: HitEvent)
+## A hit arrived while `invulnerable` and was ignored (e.g. dodged).
+signal evaded(event: HitEvent)
 
 @export var health: HealthComponent
+## While true every hit is ignored (dodge i-frames). Set by the owner.
+@export var invulnerable: bool = false
 
 ## The latest hit, set before damage is applied (read by `died` listeners
 ## such as the ragdoll).
@@ -35,6 +39,9 @@ func receive_event(event: HitEvent) -> void:
 	if health == null or health.is_dead:
 		return
 	event.hurtbox = self
+	if invulnerable:
+		evaded.emit(event)
+		return
 	last_hit = event
 	event.applied = health.take_damage(event.amount, event.source)
 	event.lethal = health.is_dead

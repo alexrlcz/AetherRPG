@@ -24,6 +24,9 @@ func _ready() -> void:
 	%HealButton.pressed.connect(heal_player)
 	%KillButton.pressed.connect(kill_all_enemies)
 	_setup_appearance_controls()
+	# Mouse-only: a focused button would swallow Space (dodge) as ui_accept.
+	for button in _panel.find_children("*", "BaseButton", true, false):
+		(button as BaseButton).focus_mode = Control.FOCUS_NONE
 
 
 func _unhandled_input(event: InputEvent) -> void:

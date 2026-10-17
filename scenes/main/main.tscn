@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://8n645ncl27rk"]
 
-[ext_resource type="PackedScene" path="res://scenes/world/dungeon_01.tscn" id="1_arena"]
+[ext_resource type="PackedScene" uid="uid://d2bggm32r4mfg" path="res://scenes/world/dungeon_01.tscn" id="1_arena"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/camera/iso_camera_rig.tscn" id="3_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="4_hud"]
@@ -8,7 +8,7 @@
 [ext_resource type="Script" uid="uid://c0koqi3iidm3q" path="res://scripts/main/main.gd" id="6_main"]
 [ext_resource type="Script" uid="uid://cl5y8ndg4oa2n" path="res://scripts/world/enemy_spawner.gd" id="7_spawner"]
 [ext_resource type="PackedScene" path="res://scenes/debug/debug_menu.tscn" id="8_debug"]
-[ext_resource type="Script" path="res://scripts/combat/hitstop.gd" id="40_hitstop"]
+[ext_resource type="Script" uid="uid://plft8eekvbr8" path="res://scripts/combat/hitstop.gd" id="40_hitstop"]
 
 [node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player")]
 script = ExtResource("6_main")
@@ -19,7 +19,7 @@ player = NodePath("Player")
 [node name="Player" parent="." unique_id=1748846920 instance=ExtResource("2_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.9, 0, 10)
 
-[node name="Hitstop" type="Node" parent="."]
+[node name="Hitstop" type="Node" parent="." unique_id=1308140461]
 script = ExtResource("40_hitstop")
 
 [node name="Enemies" type="Node3D" parent="." unique_id=1689111946]

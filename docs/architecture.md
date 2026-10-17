@@ -20,6 +20,7 @@
 | `cycle_target` | Tab                | Next lock target, nearest to farthest, wrapping (locks the nearest if unlocked). |
 | `attack`       | Left mouse (hold to repeat) | Light combo: Rising Slash -> Sweep -> Finisher -> Rising Slash... (see Combat feel). |
 | `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
+| `dodge`        | Space              | Dodge roll toward the WASD direction (toward the cursor if none held), with i-frames (see Dodge roll). |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
 | `restart`      | R                  | After death (1 s delay): reload the level. |
 | `debug_menu`   | F1                 | Toggle the debug panel (debug builds only). |
@@ -82,7 +83,10 @@ reads it; nothing reacts to an attack merely starting.
   `applied`/`lethal`, then emits `hurt(amount, source)` and
   `hit_received(event)` (only if damage was taken). `last_hit` is set before
   damage so `died` listeners (ragdoll) can read the killing blow.
-  `receive_hit(amount, source)` remains for plain damage.
+  `receive_hit(amount, source)` remains for plain damage. While `invulnerable`
+  (dodge i-frames) every hit is ignored and `evaded(event)` is emitted
+  instead. The hitbox still counts that hurtbox as hit for the activation, so
+  a dodged swing cannot land later in the same strike.
 - `HitboxComponent`: while `active`, hits each hurtbox once per activation, or
   every `rehit_interval` seconds if > 0 (hazards, DoT zones). `source`
   defaults to the scene owner; `profile` (set per attack) goes on the event.
@@ -249,8 +253,8 @@ overhead cut.
   keeps its own proportions. `remove_immutable_tracks` is off so constant
   rotation tracks are kept. Godot strips the `_Loop` suffix on import
   (`Idle_Loop` -> `Idle`, `Jog_Fwd_Loop` -> `Jog_Fwd`).
-- Mixamo locomotion (strafe left/right, jog backward, jog backward
-  diagonals) is retargeted onto this skeleton by
+- Mixamo locomotion (jog forward diagonals, strafe left/right, jog backward,
+  jog backward diagonals) is retargeted onto this skeleton by
   `tools/build_mixamo_library.gd` into
   `assets/characters/mixamo/mixamo_locomotion.res` (the rig's `MX` library).
   The source FBX files ("Without Skin", 65-bone `mixamorig_` skeleton) are
@@ -260,8 +264,12 @@ overhead cut.
   gets the source's world-space rotation delta from rest. The hips keep only
   their bob and sway, scaled to the mannequin hip height (×0.88), with the
   clip's travel removed. The travel speed is stored as `reference_speed`
-  metadata. Rebuild the library, then the rig, after changing the sources:
-  `godot --headless --path . -s res://tools/build_mixamo_library.gd`.
+  metadata. Clips whose source file is missing from the source directory are
+  kept from the existing library, so a single new download can be added on
+  its own. "With Skin" downloads work too (the builder uses the take with the
+  most tracks, skipping the empty `Take 001`). Rebuild the library after
+  changing the sources (the rig references it by path):
+  `godot --headless --path . -s res://tools/build_mixamo_library.gd -- "<source dir>"`.
 - `scenes/characters/humanoid_rig.tscn` = the male body glTF + ragdoll +
   `RightHand` attachment (bone `hand_r`) + `AnimationPlayer` with the library.
   It is **generated** by `tools/build_humanoid_rig.gd` (bone table at the top);
@@ -293,7 +301,8 @@ overhead cut.
   hysteresis) / run (`Jog_Fwd`, rate = speed / 5.36 m/s), cycle rate clamped to
   0.6–1.6x, 0.25 s locomotion crossfades. While the body's `is_strafing` is
   true (aiming or locked on) the cycle is picked from the movement direction
-  relative to the facing: forward < 55° (walk/run), strafe 55–115°
+  relative to the facing: forward < 22.5° (walk/run), forward diagonal
+  22.5–67.5° (`MX/Jog_Fwd_L/R`), strafe 67.5–115°
   (`MX/Strafe_L/R`), backward diagonal 115–160° (`MX/Jog_Bwd_L/R`), backward
   (`MX/Jog_Bwd`), with 10° hysteresis at the boundaries. Their rate uses each
   clip's `reference_speed` metadata. If a directional clip is missing, the
@@ -376,11 +385,37 @@ overhead cut.
   28), and with no input it slows at `deceleration` 30. Roughly 0.4 s to full
   speed, 0.2 s to stop, short arcs on direction changes. Tunables are in the
   "Movement Feel" export group.
-- While strafing (aiming or locked on), sideways and backward movement is
-  slower: `strafe_speed_multiplier` 0.6 at 90° from the facing,
-  `backpedal_speed_multiplier` 0.55 at 180°, blended in between, full speed
-  within 45° of the facing. The Mixamo strafe/backpedal cycles naturally move
-  at 2.1–2.65 m/s; at full speed (6 m/s) they would skate. 1 = off.
+- While strafing (aiming or locked on), off-axis movement is slower:
+  `diagonal_speed_multiplier` 0.65 at 45° from the facing,
+  `strafe_speed_multiplier` 0.6 at 90°, `backpedal_speed_multiplier` 0.55 at
+  180°, blended in between, full speed only straight ahead. The Mixamo
+  directional cycles naturally move at 2.1–2.65 m/s; at full speed (6 m/s)
+  they would skate even at the 1.6x cycle-rate cap. 1 = off.
+
+## Dodge roll
+
+- `DodgeComponent` (`scripts/components/`, node `Dodge` on the player) runs
+  one roll at a time: ROLL (moving) -> RECOVERY (rooted, getting up) ->
+  READY. The owner calls `start(direction)` and, while `is_dodging()`,
+  applies `current_velocity()` instead of its own movement (same pattern as
+  the melee lunge). Each tick's velocity is the change of an analytic
+  ease-out position curve (`falloff` 0.75) over that tick, so the distance is
+  exact at any tick rate. Defaults: `distance` 4 m over `duration` 0.6 s,
+  `recovery` 0.15 s, i-frames 0.03–0.4 s from the start (sets
+  `HurtboxComponent.invulnerable`), `cooldown` 0.9 s between roll starts.
+- Animation: UAL1 `Roll` (in place, 1.47 s) via `play_action()`, sped up to
+  span roll + recovery (~1.96x). Only a forward roll exists, so the character
+  snaps to face the roll direction; while aiming or locked on it turns back
+  toward the cursor / target afterwards.
+- Player rules (`PlayerController._update_dodge()`): Space is buffered for
+  `input_buffer_time`. Direction = WASD, else the cursor, else the model's
+  forward. A roll can cut into an attack's recovery but not its wind-up or
+  strike (the press stays buffered). During the roll, attack presses are
+  buffered without expiring; movement input, a buffered attack or a held
+  attack ends the get-up recovery early. A stagger or death cancels the roll.
+  Not armoured while rolling: outside the i-frames hits stagger as usual.
+- Debug-menu buttons don't take keyboard focus, so Space (`ui_accept`) never
+  presses a focused button instead of dodging.
 
 ## Levels
 

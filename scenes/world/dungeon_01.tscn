@@ -1,4 +1,4 @@
-[gd_scene format=4]
+[gd_scene format=4 uid="uid://d2bggm32r4mfg"]
 
 [ext_resource type="NavigationMesh" path="res://resources/navigation/dungeon_01_navmesh.tres" id="1_g7fu0"]
 [ext_resource type="PackedScene" path="res://scenes/world/hazards/spike_trap.tscn" id="2_027ax"]
@@ -2498,7 +2498,7 @@ mesh = SubResource("SphereMesh_b1773")
 [node name="@OmniLight3D@255" type="OmniLight3D" parent="NavigationRegion3D/Props/Campfire1" unique_id=1832344419]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
 light_color = Color(1, 0.55, 0.25, 1)
-light_energy = 2.5
+light_energy = 10.0
 shadow_enabled = true
 omni_range = 8.0
 
@@ -2523,7 +2523,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("BoxShape3D_nylgv")
 
 [node name="Barrel6" type="StaticBody3D" parent="NavigationRegion3D/Props" unique_id=617924344]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0, 4.200001)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.262762, 0, 4.216698)
 collision_mask = 0
 
 [node name="@MeshInstance3D@262" type="MeshInstance3D" parent="NavigationRegion3D/Props/Barrel6" unique_id=1831430072]
@@ -2539,7 +2539,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.77, 0)
 mesh = SubResource("CylinderMesh_fsh22")
 
 [node name="@CollisionShape3D@265" type="CollisionShape3D" parent="NavigationRegion3D/Props/Barrel6" unique_id=945645114]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.475, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.475, 0.1817131)
 shape = SubResource("CylinderShape3D_upvta")
 
 [node name="Statue1" type="StaticBody3D" parent="NavigationRegion3D/Props" unique_id=1902637]
@@ -3515,7 +3515,7 @@ mesh = SubResource("BoxMesh_5kjbq")
 
 [node name="Hazards" type="Node3D" parent="." unique_id=1457190447]
 
-[node name="SpikeTrap1" type="Node3D" parent="Hazards" unique_id=930304762 instance=ExtResource("2_027ax")]
+[node name="SpikeTrap1" parent="Hazards" unique_id=930304762 instance=ExtResource("2_027ax")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -23)
 
 [node name="Markers" type="Node3D" parent="." unique_id=680678880]
