@@ -8,6 +8,7 @@ extends CanvasLayer
 @onready var _health_label: Label = %HealthLabel
 @onready var _defeated_label: Label = %DefeatedLabel
 @onready var _restart_hint: Label = %RestartHint
+@onready var _level_label: Label = %LevelLabel
 
 
 func _ready() -> void:
@@ -15,6 +16,8 @@ func _ready() -> void:
 	_restart_hint.hide()
 	if player_health:
 		bind_player_health(player_health)
+	GameRun.current().level_changed.connect(_on_level_changed)
+	_on_level_changed(GameRun.current().level)
 
 
 func bind_player_health(health: HealthComponent) -> void:
@@ -30,6 +33,10 @@ func _on_player_health_changed(current: int, maximum: int) -> void:
 	_health_label.text = "HP %d / %d" % [current, maximum]
 	_defeated_label.visible = current <= 0
 	_restart_hint.visible = current <= 0
+
+
+func _on_level_changed(level: int) -> void:
+	_level_label.text = "Level %d" % level
 
 
 func _on_player_died() -> void:

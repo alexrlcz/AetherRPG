@@ -2,7 +2,9 @@ class_name DungeonBuilder
 extends RefCounted
 ## Turns a DungeonLayout into a level scene: floor, outer and partition walls
 ## (low on the camera side, full-height collision), door frames, wall torches,
-## props, decor, hazards, lighting and a Marker3D per label. Used at runtime
+## props, decor, hazards, lighting, a Marker3D per label and an ExitGate on an
+## "Exit" label (under the navigation region: its pillars bake into the
+## navmesh). Used at runtime
 ## (generated levels) and by tools/build_dungeon.gd (saved scenes).
 ##
 ##   var level := DungeonBuilder.new().build(layout)
@@ -62,6 +64,7 @@ func build(layout: DungeonLayout, level_name: String = "Dungeon") -> Node3D:
 	_build_torches(root)
 	_build_props(nav, root)
 	_build_markers(root)
+	_build_exit_gate(nav)
 	return root
 
 
@@ -364,6 +367,16 @@ func _build_markers(parent: Node3D) -> void:
 		marker.name = (label[0] as String).to_pascal_case()
 		marker.position = _world(label[1])
 		group.add_child(marker)
+
+
+func _build_exit_gate(nav: Node3D) -> void:
+	for label: Array in _layout.labels:
+		if label[0] == "Exit":
+			var gate := ExitGate.new()
+			gate.name = "ExitGate"
+			gate.position = _world(label[1])
+			nav.add_child(gate)
+			return
 
 
 # --- Scene helpers ---------------------------------------------------------

@@ -2,7 +2,8 @@ class_name DebugMenu
 extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
-## The panel also edits the player's appearance and weapon live (not saved).
+## The panel also edits the player's appearance and weapon live (not saved)
+## and generates levels from a seed (Main.generate_level()).
 
 @export var spawner: EnemySpawner
 @export var player_health: HealthComponent
@@ -14,6 +15,8 @@ extends CanvasLayer
 @export var player_weapon: WeaponComponent
 ## Weapons offered in the weapon option.
 @export var player_weapons: Array[WeaponDefinition] = []
+## Has generate_level(seed) (the Main scene).
+@export var main: Node
 
 @onready var _panel: Control = %Panel
 @onready var _count_label: Label = %EnemyCount
@@ -29,6 +32,7 @@ func _ready() -> void:
 	%KillButton.pressed.connect(kill_all_enemies)
 	_setup_appearance_controls()
 	_setup_weapon_control()
+	_setup_level_controls()
 	# Mouse-only: a focused button would swallow Space (jump) as ui_accept.
 	for button in _panel.find_children("*", "BaseButton", true, false):
 		(button as BaseButton).focus_mode = Control.FOCUS_NONE
@@ -68,6 +72,33 @@ func _alive_enemies() -> Array[HealthComponent]:
 		if health and not health.is_dead:
 			result.append(health)
 	return result
+
+
+## Replaces the level with the one generated from `level_seed`, populated
+## for the level in the level box.
+func generate_level(level_seed: int) -> void:
+	if main and main.has_method(&"generate_level"):
+		(%SeedSpin as SpinBox).set_value_no_signal(level_seed)
+		var level := int((%LevelSpin as SpinBox).value)
+		GameRun.current().jump_to(level)  # HUD and the gate follow the jump.
+		main.generate_level(level_seed, level)
+
+
+func _setup_level_controls() -> void:
+	var spin: SpinBox = %SeedSpin
+	var line := spin.get_line_edit()
+	var level_line := (%LevelSpin as SpinBox).get_line_edit()
+	# Typing a number must not keep WASD / Space from reaching the game.
+	for edit in [line, level_line]:
+		edit.text_submitted.connect(func(_text: String) -> void: edit.release_focus())
+	%GenerateButton.pressed.connect(func() -> void:
+		line.release_focus()
+		level_line.release_focus()
+		generate_level(int(spin.value)))
+	%RandomLevelButton.pressed.connect(func() -> void:
+		line.release_focus()
+		level_line.release_focus()
+		generate_level(randi_range(1, 999999)))
 
 
 ## Equips `player_weapons[index]` on the player.

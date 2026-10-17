@@ -1,6 +1,5 @@
 [gd_scene format=3 uid="uid://8n645ncl27rk"]
 
-[ext_resource type="PackedScene" uid="uid://d2bggm32r4mfg" path="res://scenes/world/dungeon_01.tscn" id="1_arena"]
 [ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/camera/iso_camera_rig.tscn" id="3_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="4_hud"]
@@ -9,12 +8,13 @@
 [ext_resource type="Script" uid="uid://cl5y8ndg4oa2n" path="res://scripts/world/enemy_spawner.gd" id="7_spawner"]
 [ext_resource type="PackedScene" path="res://scenes/debug/debug_menu.tscn" id="8_debug"]
 [ext_resource type="Script" uid="uid://plft8eekvbr8" path="res://scripts/combat/hitstop.gd" id="40_hitstop"]
+[ext_resource type="Script" path="res://scripts/ui/level_fade.gd" id="41_fade"]
 
-[node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player")]
+[node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player", "enemies", "fade")]
 script = ExtResource("6_main")
 player = NodePath("Player")
-
-[node name="Dungeon" parent="." unique_id=1284556381 instance=ExtResource("1_arena")]
+enemies = NodePath("Enemies")
+fade = NodePath("LevelFade")
 
 [node name="Player" parent="." unique_id=1748846920 instance=ExtResource("2_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.9, 0, 10)
@@ -24,26 +24,8 @@ script = ExtResource("40_hitstop")
 
 [node name="Enemies" type="Node3D" parent="." unique_id=1689111946]
 
-[node name="KnightBossRoom" parent="Enemies" unique_id=407595697 instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0, 26.7)
-
-[node name="KnightWestHall" parent="Enemies" instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -13)
-
-[node name="KnightNorthRoom" parent="Enemies" instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, -33)
-
-[node name="KnightCentralHall" parent="Enemies" instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, -10)
-
-[node name="KnightEastRoom" parent="Enemies" instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -13)
-
-[node name="KnightSouthHall" parent="Enemies" instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 11)
-
-[node name="KnightSouthEastRoom" parent="Enemies" instance=ExtResource("5_enemy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 0, 14)
+[node name="LevelFade" type="CanvasLayer" parent="."]
+script = ExtResource("41_fade")
 
 [node name="IsoCameraRig" parent="." unique_id=2066421102 instance=ExtResource("3_camera")]
 target_path = NodePath("../Player")
@@ -57,9 +39,10 @@ enemy_scene = ExtResource("5_enemy")
 container = NodePath("../Enemies")
 avoid = NodePath("../Player")
 
-[node name="DebugMenu" parent="." unique_id=1268275517 node_paths=PackedStringArray("spawner", "player_health", "enemies", "player_appearance", "player_weapon") instance=ExtResource("8_debug")]
+[node name="DebugMenu" parent="." unique_id=1268275517 node_paths=PackedStringArray("spawner", "player_health", "enemies", "player_appearance", "player_weapon", "main") instance=ExtResource("8_debug")]
 spawner = NodePath("../EnemySpawner")
 player_health = NodePath("../Player/HealthComponent")
 enemies = NodePath("../Enemies")
 player_appearance = NodePath("../Player/Appearance")
 player_weapon = NodePath("../Player/Weapon")
+main = NodePath("..")

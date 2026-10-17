@@ -52,15 +52,18 @@ func get_marker(marker_name: String) -> Marker3D:
 func _on_bake_finished() -> void:
 	# The region has its navmesh, but the navigation map takes it in on a
 	# later (background) sync, a few physics frames on: until then path
-	# queries return nothing. Wait until the map finds a point of the new
-	# navmesh before calling the level playable.
+	# queries return nothing, or still see a level this one replaced. Wait
+	# until the map's closest point to the new navmesh belongs to this
+	# level's region before calling the level playable.
 	var nav := level.get_node("NavigationRegion3D") as NavigationRegion3D
 	var vertices := nav.navigation_mesh.get_vertices()
 	if not vertices.is_empty():
 		var probe := nav.global_transform * vertices[0]
 		var map := get_world_3d().navigation_map
 		for i in MAP_SYNC_MAX_FRAMES:
-			if NavigationServer3D.map_get_closest_point(map, probe).distance_to(probe) < 0.05:
+			# Queries before the map's first sync are errors, not answers.
+			if NavigationServer3D.map_get_iteration_id(map) > 0 \
+					and NavigationServer3D.map_get_closest_point_owner(map, probe) == nav.get_rid():
 				break
 			await get_tree().physics_frame
 			if not is_inside_tree():

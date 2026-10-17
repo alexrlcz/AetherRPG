@@ -61,6 +61,36 @@ text = "Heal player"
 unique_name_in_owner = true
 text = "Kill all enemies"
 
+[node name="LevelRow" type="HBoxContainer" parent="Panel/VBox"]
+theme_override_constants/separation = 6
+
+[node name="SeedLabel" type="Label" parent="Panel/VBox/LevelRow"]
+text = "Seed"
+
+[node name="SeedSpin" type="SpinBox" parent="Panel/VBox/LevelRow"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+max_value = 999999.0
+rounded = true
+
+[node name="LevelLabel" type="Label" parent="Panel/VBox/LevelRow"]
+text = "Lv"
+
+[node name="LevelSpin" type="SpinBox" parent="Panel/VBox/LevelRow"]
+unique_name_in_owner = true
+min_value = 1.0
+max_value = 99.0
+value = 1.0
+rounded = true
+
+[node name="GenerateButton" type="Button" parent="Panel/VBox/LevelRow"]
+unique_name_in_owner = true
+text = "Generate"
+
+[node name="RandomLevelButton" type="Button" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "Random level"
+
 [node name="WeaponRow" type="HBoxContainer" parent="Panel/VBox"]
 theme_override_constants/separation = 8
 

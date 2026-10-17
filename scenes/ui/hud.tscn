@@ -24,6 +24,18 @@ corner_radius_bottom_left = 3
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
+[node name="LevelLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 24.0
+offset_top = 16.0
+offset_right = 324.0
+offset_bottom = 48.0
+theme_override_colors/font_color = Color(0.95, 0.85, 0.6, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "Level 1"
+
 [node name="PlayerPanel" type="VBoxContainer" parent="."]
 anchors_preset = 2
 anchor_top = 1.0

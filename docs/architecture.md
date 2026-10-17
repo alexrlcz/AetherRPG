@@ -25,8 +25,8 @@
 | `sprint` (hold) | Left Alt          | Sprint at 8 m/s; faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
 | `walk_toggle`  | Left Ctrl          | Toggle walking (1.6 m/s, `Walk_Formal` cycle). |
 | `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
-| `restart`      | R                  | After death (1 s delay): reload the level. |
-| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, player appearance and **player weapon** (Sword / Greatsword). |
+| `restart`      | R                  | After death (1 s delay): start a new run at level 1 (new seed). |
+| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **generate a level** (seed + Generate, or Random level), player appearance and **player weapon** (Sword / Greatsword). |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
 
 Attack presses are handled as input events (`_unhandled_input`), so clicks on
@@ -599,6 +599,94 @@ overhead cut.
     polls until the map finds a point of the new navmesh. Spawn enemies and
     start the level only after the signal. dungeon_01 builds in 0.013 s and
     is playable 0.03-0.06 s after `build()` (headless).
+- `LevelGenerator` (`scripts/world/level_generator.gd`, step 2): seeded
+  layouts made in code. A main path of `main_rooms` (6) rectangular rooms
+  (6-11 cells a side) from the start to the exit, `branches` (2) side
+  branches of 1-2 rooms off the rooms between, and with `loop_chance` (0.5)
+  one extra corridor between two rooms that face each other across a short
+  gap. Rooms join by straight corridors, 2 cells wide and 3-7 long, at least
+  1 cell from a room's corners, with a door frame at each end. Unconnected
+  rooms and corridors keep `gap` (2) empty cells apart, so walls never
+  merge. For the first half of its tries each main-path room must land
+  further from the start than the previous one, so the path heads somewhere
+  instead of curling back. All randomness comes from one
+  RandomNumberGenerator seeded from the level seed (and the attempt number
+  when a layout can't be completed, which is rare; `layout.seed` is the
+  asked-for seed either way), so a seed always gives the same level. The
+  floor cells are traced into outline rings (`DungeonLayout.set_floor_cells()`,
+  collinear points merged) for DungeonBuilder; `layout.rooms` /
+  `layout.corridors` keep roles (start, path, exit, side), depth and links
+  for the props, enemy and gate passes. Labels: `Start`, `Exit`. Measured:
+  1.4 ms per layout, 7-10 rooms per level, about a third with a loop, built
+  and baked in 0.06-0.11 s (`tests/level_generator_test.gd`: 300-seed sweep,
+  outline vs cells on 60 seeds, 15 real builds with a navmesh path from Start
+  to the Exit and every room).
+- Population (step 3), run by `LevelGenerator.generate(seed, level)` after
+  the layout, each pass on its own RNG seeded from the level seed:
+  - `PropScatter` (`scripts/world/prop_scatter.gd`): reserves each room's
+    routes (a band 1 cell wider than the corridor from every doorway to the
+    centre line, then along it to a 3x3 centre block) as
+    `layout.reserved_cells`, then places props off them: 4 pillars in half
+    the rooms >= 9 cells a side; 1 to area/20 clusters of 1-2 crates or
+    barrels against the walls (crates 0.2 cells from the wall, barrels 0.25,
+    one crate in corner cells: a turned crate's corner reaches further);
+    rubble in a corner (30%); a table (25%, rooms >= 8); a statue (15% of
+    path rooms); campfire + bedroll in the start room; braziers in two exit
+    room corners; a chest against the far wall of dead-end side rooms (60%).
+    One prop group per cell (`layout.blocked_cells` = cells with collision),
+    and a blocking prop is skipped if any free cell of its room would lose
+    its way to the doorways. About 38 props per level.
+  - `EncounterPlanner` (`scripts/world/encounter_planner.gd`) with an
+    `EnemyRoster` (`resources/encounters/knights.tres`: `EnemyEntry`
+    resources = scene, weapon, cost, first level; club knight 2 points from
+    level 1, greatsword knight 3 from level 3): each room's budget =
+    (2 + 1.5 x level) +-20%, x0.5 side rooms, x1.5 the exit, none in the
+    start room, spent on random affordable entries, at most one enemy per
+    12 room cells. Each enemy gets its own cell, never a prop cell, more
+    than 2 cells (Chebyshev) from every doorway and 6 cells (12 m) from
+    Start, facing the room's centre. Writes `layout.spawns`. Measured: 7.1
+    enemies per level at level 1, 15.5 at 3, 26.4 at 6 (starting values to
+    tune; nothing yet stops a room from attacking at once).
+- Run flow (step 4). `RunState` autoload (`scripts/run/run_state.gd`,
+  class `GameRun`; scripts reach it with `GameRun.current()`, because the
+  autoload's global name doesn't compile when a script is the main loop,
+  i.e. the `-s` test suites): `run_seed`, `level` (1-based across
+  chapters), `player_health` carried at each gate, `level_seed(n)` =
+  hash(run seed, n), `chapter()` / `level_in_chapter()` (15 per chapter),
+  `is_boss_level()` (every 5th, for step 6), `start_new_run()`,
+  `advance(health)`, debug `jump_to(level)`, signal `level_changed`.
+  - `Main` (`scripts/main/main.gd`) no longer holds a static level: on start
+    it starts a run if none is active and builds the run's current level
+    (`load_run_level()`), behind `LevelFade` (black + "Level N" title,
+    0.35 s fades). Health carries naturally (the player node persists);
+    `RunState.player_health` records it for scene-based loading later.
+  - `ExitGate` (`scripts/world/exit_gate.gd`): stone arch + glowing portal +
+    light, built in code. `DungeonBuilder` puts one on every `Exit` label
+    under the navigation region, so its solid pillars bake into the navmesh.
+    It emits `player_entered` once, only for bodies in group `player`, armed
+    0.5 s after it enters the tree. Main then calls `RunState.advance()`,
+    fades out, builds the next level and fades back in.
+  - Enemies keep `exit_clearance` (2 cells) off the gate.
+  - Death: R (`restart()`) starts a new run and reloads the scene.
+  - `HUD` shows "Level N" (RunState.level_changed).
+- `Main.generate_level(seed, level)` (debug menu: seed + level boxes +
+  Generate, or Random level; the debug path also moves the run to that level)
+  replaces the dungeon with a generated `DungeonLevel`, puts the player on
+  `Start` (snapping the camera) and, once the navmesh is in use, replaces the
+  old enemies with the level's spawns (each wielding its entry's weapon,
+  home = its spawn) and connects the gate. Each call takes a ticket; a call
+  that finds a newer one started while it baked returns null, so only the
+  newest level is ever kept.
+  `tests/run_test.gd`: RunState, start on level 1, gate ignores knights,
+  player through the gate -> level 2 with health carried, gate pillars are
+  navmesh holes, overlapping requests.
+  `tests/population_test.gd`: props in rooms, off routes, inside walls, no
+  cut-off cells (200 seeds); spawn rules at levels 1/3/6; every spawn on the
+  navmesh and reachable in 8 real builds; spawned enemies stay put.
+- `DungeonLevel` readiness: the map's closest point to the new navmesh must
+  belong to this level's region (`map_get_closest_point_owner`); a plain
+  distance check passed early when a level replaced another, because the map
+  still held the old level's navmesh for a few frames.
 - `scenes/world/dungeon_01.tscn` is the current level, **generated** by
   `tools/build_dungeon.gd` from `Dungeon01Layout`
   (`scripts/world/dungeon_01_layout.gd`: the Dungeon Scrawl map
@@ -623,11 +711,9 @@ overhead cut.
   `Dungeon01Layout`): pillars, crates, barrels, tables, chest, rubble, statue,
   braziers, campfire, throne (static bodies under the navigation region) and
   decor without collision (carpet, bedroll). Placeholder primitive meshes.
-- The player start is placed in `main.tscn` at the `Start` marker. Seven
-  enemies (`Main/Enemies/Knight*`) stand one per room: boss room (at the
-  `BossRoom` marker), west hall, north room, central hall, east room, south
-  hall and south-east room. Each waits at its spot until it detects the
-  player. They are at least 15 m apart and 22 m from the start.
+- `main.tscn` no longer instances dungeon_01 or its seven knights: the run
+  builds generated levels. dungeon_01 (and your own Scrawl maps) join the
+  level pool in step 5.
 - `test_arena.tscn` and its navmesh are no longer used by `main.tscn`.
 
 ## Navigation
@@ -673,6 +759,14 @@ scripts/world/dungeon_layout.gd      DungeonLayout: a level on the cell grid (+ 
 scripts/world/dungeon_builder.gd     DungeonBuilder: layout -> level scene, navmesh settings and bake
 scripts/world/dungeon_level.gd       DungeonLevel: runtime build + threaded bake, navigation_ready
 scripts/world/dungeon_01_layout.gd   Dungeon01Layout: the first dungeon's map + prop table
+scripts/world/level_generator.gd     LevelGenerator: seeded room-and-corridor layouts (+ population)
+scripts/world/exit_gate.gd           ExitGate: the portal to the next level
+scripts/run/run_state.gd             RunState autoload (class GameRun): the current run
+scripts/ui/level_fade.gd             LevelFade: fade + level title over level swaps
+scripts/world/prop_scatter.gd        PropScatter: route reservation + prop rules
+scripts/world/encounter_planner.gd   EncounterPlanner: enemy budget and placement
+scripts/world/enemy_roster.gd        EnemyRoster / enemy_entry.gd EnemyEntry: data for the planner
+resources/encounters/                Rosters and enemy entries
 scripts/ui/damage_numbers.gd         Floating combat numbers
 scripts/components/                  health, hitbox, hurtbox, melee attack, hit flash components
 scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop, WeaponDefinition, WeaponComponent
@@ -681,7 +775,7 @@ scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
 resources/combat/                    AttackProfiles: player sword (combo A/B/C, cleave, dash; slash and rising cut unused), greatsword (gs_*), knights (club swing, dash, gs_knight_*)
 resources/weapons/                   WeaponDefinitions: sword, club, greatsword
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
-tests/*_test.gd                      Also dodge, lock_on, enemy, movement and weapon suites (same command, other file)
+tests/*_test.gd                      Also dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population and run suites (same command, other file)
 tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd
 scripts/player/lock_on_component.gd  Enemy lock-on (middle mouse / Tab) and target marker

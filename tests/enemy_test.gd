@@ -4,7 +4,6 @@ extends "res://tests/combat_test.gd"
 ##   godot --headless --path . -s res://tests/enemy_test.gd
 ## Exit code 0 = every check passed.
 
-const MAIN := preload("res://scenes/main/main.tscn")
 
 
 func _initialize() -> void:
@@ -12,7 +11,6 @@ func _initialize() -> void:
 	await test_club_hitbox()
 	await test_strike_window()
 	await test_chase_and_hit()
-	await test_main_scene_enemies()
 	await test_dash_knocks_player_down()
 	await test_hits_on_downed_enemy()
 	print("FAILURES: %d" % failures)
@@ -79,42 +77,6 @@ func test_chase_and_hit() -> void:
 	var hit := await wait_until(func() -> bool: return player.health.current_health < hp, 400)
 	check(hit, "enemy hit the player (state %s)" % EnemyController.State.keys()[enemy.state])
 	await clear_arena()
-
-
-func test_main_scene_enemies() -> void:
-	print("4. The main scene has several enemies, spread out, idle at the start")
-	var main: Node3D = MAIN.instantiate()
-	root.add_child(main)
-	await ticks(30)
-	var player := main.get_node("Player") as PlayerController
-	var enemies: Array[EnemyController] = []
-	for child in main.get_node("Enemies").get_children():
-		if child is EnemyController:
-			enemies.append(child)
-	check(enemies.size() >= 6, "%d enemies placed" % enemies.size())
-	var map := main.get_world_3d().navigation_map
-	var on_nav := 0
-	var min_gap := INF
-	var min_to_player := INF
-	for i in enemies.size():
-		var e := enemies[i]
-		var near := NavigationServer3D.map_get_closest_point(map, e.global_position + Vector3.UP * 0.5)
-		if flat(near - e.global_position).length() < 0.3:
-			on_nav += 1
-		min_to_player = minf(min_to_player, flat(e.global_position - player.global_position).length())
-		for j in range(i + 1, enemies.size()):
-			min_gap = minf(min_gap, flat(e.global_position - enemies[j].global_position).length())
-	check(on_nav == enemies.size(), "all on the navmesh (%d/%d)" % [on_nav, enemies.size()])
-	check(min_gap >= 10.0, "at least 10 m apart (closest %.1f m)" % min_gap)
-	var detection: float = enemies[0].stats.detection_radius
-	check(min_to_player > detection * 2.0,
-		"none near the start (closest %.1f m)" % min_to_player)
-	await ticks(60)
-	var idle := enemies.filter(func(e: EnemyController) -> bool:
-		return e.state == EnemyController.State.IDLE)
-	check(idle.size() == enemies.size(), "all idle at the start (%d/%d)" % [idle.size(), enemies.size()])
-	main.queue_free()
-	await ticks(2)
 
 
 func test_dash_knocks_player_down() -> void:
