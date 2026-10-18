@@ -10,11 +10,12 @@
 [ext_resource type="Script" uid="uid://plft8eekvbr8" path="res://scripts/combat/hitstop.gd" id="40_hitstop"]
 [ext_resource type="Script" path="res://scripts/ui/level_fade.gd" id="41_fade"]
 
-[node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player", "enemies", "fade")]
+[node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player", "enemies", "fade", "hud")]
 script = ExtResource("6_main")
 player = NodePath("Player")
 enemies = NodePath("Enemies")
 fade = NodePath("LevelFade")
+hud = NodePath("HUD")
 
 [node name="Player" parent="." unique_id=1748846920 instance=ExtResource("2_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20.9, 0, 10)

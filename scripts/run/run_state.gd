@@ -17,6 +17,9 @@ signal level_changed(level: int)
 ## Levels per chapter; boss floors every `boss_every` levels (step 6).
 const LEVELS_PER_CHAPTER := 15
 const BOSS_EVERY := 5
+const FLOOR_NORMAL := ""
+const FLOOR_BOSS := "boss"
+const FLOOR_CHAPTER_BOSS := "chapter_boss"
 
 var run_seed: int = 0
 ## 1-based, counted across chapters.
@@ -74,4 +77,25 @@ func level_in_chapter() -> int:
 
 
 func is_boss_level() -> bool:
-	return level_in_chapter() % BOSS_EVERY == 0
+	return floor_kind(level) != FLOOR_NORMAL
+
+
+## What kind of floor level `n` is: FLOOR_CHAPTER_BOSS on a chapter's last
+## level, FLOOR_BOSS every BOSS_EVERY levels, else FLOOR_NORMAL.
+static func floor_kind(n: int) -> String:
+	var in_chapter := (n - 1) % LEVELS_PER_CHAPTER + 1
+	if in_chapter == LEVELS_PER_CHAPTER:
+		return FLOOR_CHAPTER_BOSS
+	if in_chapter % BOSS_EVERY == 0:
+		return FLOOR_BOSS
+	return FLOOR_NORMAL
+
+
+## "Level 5 · Boss", "Level 15 · Chapter boss", "Level 3".
+static func level_title(n: int) -> String:
+	match floor_kind(n):
+		FLOOR_BOSS:
+			return "Level %d · Boss" % n
+		FLOOR_CHAPTER_BOSS:
+			return "Level %d · Chapter boss" % n
+	return "Level %d" % n

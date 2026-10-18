@@ -3,7 +3,8 @@ extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
 ## The panel also edits the player's appearance and weapon live (not saved)
-## and generates levels from a seed (Main.generate_level()).
+## generates levels from a seed (Main.generate_level()) and plays the
+## hand-made maps in LevelPool.MAPS_DIR (Main.play_map()).
 
 @export var spawner: EnemySpawner
 @export var player_health: HealthComponent
@@ -33,6 +34,7 @@ func _ready() -> void:
 	_setup_appearance_controls()
 	_setup_weapon_control()
 	_setup_level_controls()
+	_setup_map_controls()
 	# Mouse-only: a focused button would swallow Space (jump) as ui_accept.
 	for button in _panel.find_children("*", "BaseButton", true, false):
 		(button as BaseButton).focus_mode = Control.FOCUS_NONE
@@ -99,6 +101,26 @@ func _setup_level_controls() -> void:
 		line.release_focus()
 		level_line.release_focus()
 		generate_level(randi_range(1, 999999)))
+
+
+## Plays the map `path` with the seed and level in the boxes.
+func play_map(path: String) -> void:
+	if main and main.has_method(&"play_map"):
+		var level := int((%LevelSpin as SpinBox).value)
+		GameRun.current().jump_to(level)
+		main.play_map(path, int((%SeedSpin as SpinBox).value), level)
+
+
+func _setup_map_controls() -> void:
+	var option: OptionButton = %MapOption
+	option.clear()
+	for path in LevelPool.map_paths():
+		option.add_item(path.get_file().get_basename())
+		option.set_item_metadata(option.item_count - 1, path)
+	%PlayMapButton.disabled = option.item_count == 0
+	%PlayMapButton.pressed.connect(func() -> void:
+		if option.selected >= 0:
+			play_map(option.get_item_metadata(option.selected)))
 
 
 ## Equips `player_weapons[index]` on the player.

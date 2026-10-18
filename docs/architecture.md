@@ -623,10 +623,12 @@ overhead cut.
   to the Exit and every room).
 - Population (step 3), run by `LevelGenerator.generate(seed, level)` after
   the layout, each pass on its own RNG seeded from the level seed:
-  - `PropScatter` (`scripts/world/prop_scatter.gd`): reserves each room's
-    routes (a band 1 cell wider than the corridor from every doorway to the
-    centre line, then along it to a 3x3 centre block) as
-    `layout.reserved_cells`, then places props off them: 4 pillars in half
+  - `PropScatter` (`scripts/world/prop_scatter.gd`), on any room shape (each
+    room's `cells`): reserves each room's routes (a 3x3 block around the
+    room's centre cell plus the shortest walk from every doorway to it,
+    widened by one cell) as `layout.reserved_cells`, then places props off
+    them (props against interior/partition walls sit nearer the cell centre:
+    those walls stand on the cell edge): 4 pillars in half
     the rooms >= 9 cells a side; 1 to area/20 clusters of 1-2 crates or
     barrels against the walls (crates 0.2 cells from the wall, barrels 0.25,
     one crate in corner cells: a turned crate's corner reaches further);
@@ -636,7 +638,8 @@ overhead cut.
     One prop group per cell (`layout.blocked_cells` = cells with collision),
     and a blocking prop is skipped if any free cell of its room would lose
     its way to the doorways. About 38 props per level.
-  - `EncounterPlanner` (`scripts/world/encounter_planner.gd`) with an
+  - `EncounterPlanner` (`scripts/world/encounter_planner.gd`, on room
+    `cells` too) with an
     `EnemyRoster` (`resources/encounters/knights.tres`: `EnemyEntry`
     resources = scene, weapon, cost, first level; club knight 2 points from
     level 1, greatsword knight 3 from level 3): each room's budget =
@@ -647,13 +650,91 @@ overhead cut.
     Start, facing the room's centre. Writes `layout.spawns`. Measured: 7.1
     enemies per level at level 1, 15.5 at 3, 26.4 at 6 (starting values to
     tune; nothing yet stops a room from attacking at once).
+- Hand-made maps in the run (step 5). `LevelPool`
+  (`scripts/world/level_pool.gd`) picks each run level's source: one of the
+  `.ds` maps in `assets/maps/` for `scrawl_chance` (30%) of levels, decided
+  by the level seed, else a generated layout; an unusable map falls back to
+  a generated level with a warning. `LevelPool.map_layout(path, seed, level)`
+  reads the map, finds its rooms and populates it with the same PropScatter
+  and EncounterPlanner rules. In pool mode a map's own hand-placed props
+  (dungeon_01's table) are not used.
+  - `RoomAnalysis` (`scripts/world/room_analysis.gd`): floor cells = cells
+    whose centre is floor; partition polylines block the cell edges they run
+    along (`layout.blocked_edges`; walking = `layout.can_step()`). Core cells:
+    3x3 block all floor, no partition touching it, and part of a 2x2 block of
+    such cells, so passages up to 3 cells wide and door gaps are never core.
+    Connected cores (>= 4 cells) are rooms; each reaches out `claim_radius`
+    (2) cells from its core by walking. The rest is corridor. Start room =
+    the one holding the `start` label (labels match case-insensitively);
+    exit = the `exit` label's room, else the room furthest (walking) from
+    the start, and an `Exit` label is added at its centre (the builder puts
+    the gate there). Rooms on the room-graph route start -> exit are
+    `path`, the rest `side`. dungeon_01: 8 rooms, exit = the boss room.
+  - `DungeonLayout` now carries `floor_cells`, `blocked_edges`, each room's
+    `cells` (generated rooms fill theirs from the rect) and `source`;
+    `room_entries()` finds doorways from cells (room cells you can step out of
+    into other floor), `room_centre()`, `walk_distances()`.
+  - Adding a map: draw it in Dungeon Scrawl on its grid, put a text label
+    `start` (optional `exit`), interior walls as the template's lines, doors
+    as door assets; save the `.ds` into `assets/maps/`. It joins the pool,
+    and the debug menu's map list (Play map, with the seed / level boxes)
+    plays it directly. For exported builds `*.ds` must be added to the export
+    filter (non-resource files are not exported by default).
+  - `Main.play_layout(layout)` is the shared core (ticket, spawns, gate);
+    `generate_level()`, `play_map()` and `load_run_level()` (via the pool)
+    call it. `tests/map_pool_test.gd`: rooms of dungeon_01, props / enemies
+    on it over 60 seeds (incl. partition-wall clearance and no cut-off
+    cells), a real build with gate and reachable spawns, the pool's share
+    and fallbacks, Main playing a map.
+- Boss floors (step 6). `GameRun.floor_kind(n)` (static): `FLOOR_BOSS` every
+  5th level of a chapter, `FLOOR_CHAPTER_BOSS` on its last (15), else
+  normal; `GameRun.level_title(n)` ("Level 5 · Boss") titles the fade and
+  the HUD. `LevelPool.layout_for()` turns boss levels into
+  `LevelGenerator.generate_boss(seed, level, encounter)` floors (never maps;
+  `Main.generate_level()` goes through the pool too, so the debug Generate
+  at level 5 gives a boss floor).
+  - `BossEncounter` (`scripts/world/boss_encounter.gd`, one .tres per boss in
+    `resources/encounters/`): title, boss `EnemyEntry`, escorts + count,
+    arena side. `warden_boss.tres` (Ashbound Warden: 14-cell arena, alone)
+    and `chapter_boss.tres` (The Cinder Champion: 16-cell arena, 2 club
+    knights).
+  - Layout: start + 1-2 approach rooms (no branches, no loop) + a square arena
+    with role `boss` (`exit_role` / `exit_room_size` on LevelGenerator). The
+    `Exit` label (gate) sits 2.5 cells from the arena wall opposite the way
+    in. PropScatter: arena always gets pillars (when >= 9 cells), braziers
+    in all four corners, wall clusters, no table / statue; the cells around
+    every Exit label are kept clear (all levels). The roster budget for
+    `boss` rooms is 0; `EncounterPlanner.place_boss()` puts the boss on the
+    arena's centre facing the way in (`spawn.boss = true`) and escorts on
+    free cells >2 cells from it. `layout.boss` = the encounter.
+  - Elites: `EnemyEntry` Elite group (`size_scale`, `health_scale`,
+    `damage_scale`, `poise_scale`), copied by Main onto `EnemyController`
+    before `_ready()`, which then applies them to its own copy of `stats`
+    (health, poise, knockback / detection), the `Visual` scale, its own
+    copies of the body and hurtbox capsules, health bar / damage numbers
+    height, nav agent size, reach (`attack_range`, dash ranges), root-motion
+    lunge, `MeleeAttackComponent.damage_scale`, and the ragdoll's death
+    throw (÷ size). Bosses are elite knights until they get their own
+    scenes and AI.
+  - `Main`: the boss spawn becomes `Main.boss`; the gate is `sealed` (dark
+    red portal, ignores the player) until the boss's `died` →
+    `ExitGate.unseal()`; signal `boss_spawned(boss, title)` → `HUD.show_boss()`
+    (`hud` export). The HUD's top-centre boss bar fades in when the boss first
+    leaves IDLE (it noticed the player), follows its health, and reads
+    "<title> falls — the gate opens" on death.
+  - `tests/boss_test.gd`: floor kinds and titles, 40 seeds each of level 5
+    and 15 floors (roles, arena size, gate in the arena and clear of props,
+    one boss + escorts apart), elite scaling (own stats and shapes, ragdoll
+    sane), a real chapter-boss build (gate and all enemies reachable), Main:
+    sealed gate, bar on engage, gate opens on the boss's death, through to
+    level 6.
 - Run flow (step 4). `RunState` autoload (`scripts/run/run_state.gd`,
   class `GameRun`; scripts reach it with `GameRun.current()`, because the
   autoload's global name doesn't compile when a script is the main loop,
   i.e. the `-s` test suites): `run_seed`, `level` (1-based across
   chapters), `player_health` carried at each gate, `level_seed(n)` =
   hash(run seed, n), `chapter()` / `level_in_chapter()` (15 per chapter),
-  `is_boss_level()` (every 5th, for step 6), `start_new_run()`,
+  `is_boss_level()` (step 6: boss and chapter-boss floors), `start_new_run()`,
   `advance(health)`, debug `jump_to(level)`, signal `level_changed`.
   - `Main` (`scripts/main/main.gd`) no longer holds a static level: on start
     it starts a run if none is active and builds the run's current level
@@ -712,8 +793,8 @@ overhead cut.
   braziers, campfire, throne (static bodies under the navigation region) and
   decor without collision (carpet, bedroll). Placeholder primitive meshes.
 - `main.tscn` no longer instances dungeon_01 or its seven knights: the run
-  builds generated levels. dungeon_01 (and your own Scrawl maps) join the
-  level pool in step 5.
+  builds its levels; dungeon_01 is in the level pool with any other map in
+  `assets/maps/`.
 - `test_arena.tscn` and its navmesh are no longer used by `main.tscn`.
 
 ## Navigation
@@ -760,6 +841,8 @@ scripts/world/dungeon_builder.gd     DungeonBuilder: layout -> level scene, navm
 scripts/world/dungeon_level.gd       DungeonLevel: runtime build + threaded bake, navigation_ready
 scripts/world/dungeon_01_layout.gd   Dungeon01Layout: the first dungeon's map + prop table
 scripts/world/level_generator.gd     LevelGenerator: seeded room-and-corridor layouts (+ population)
+scripts/world/room_analysis.gd       RoomAnalysis: rooms, start / exit of hand-made maps
+scripts/world/level_pool.gd          LevelPool: generated level or a hand-made map per run level
 scripts/world/exit_gate.gd           ExitGate: the portal to the next level
 scripts/run/run_state.gd             RunState autoload (class GameRun): the current run
 scripts/ui/level_fade.gd             LevelFade: fade + level title over level swaps
@@ -775,7 +858,7 @@ scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
 resources/combat/                    AttackProfiles: player sword (combo A/B/C, cleave, dash; slash and rising cut unused), greatsword (gs_*), knights (club swing, dash, gs_knight_*)
 resources/weapons/                   WeaponDefinitions: sword, club, greatsword
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
-tests/*_test.gd                      Also dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population and run suites (same command, other file)
+tests/*_test.gd                      Also dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population, run and map_pool suites (same command, other file)
 tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd
 scripts/player/lock_on_component.gd  Enemy lock-on (middle mouse / Tab) and target marker

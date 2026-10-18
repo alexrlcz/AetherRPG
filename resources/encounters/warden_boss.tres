@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="BossEncounter" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/boss_encounter.gd" id="1_boss"]
+[ext_resource type="Script" path="res://scripts/world/enemy_entry.gd" id="2_entry"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_knight.tscn" id="3_knight"]
+[ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="4_greatsword"]
+
+[sub_resource type="Resource" id="Entry_warden"]
+script = ExtResource("2_entry")
+display_name = "Ashbound Warden"
+scene = ExtResource("3_knight")
+weapon = ExtResource("4_greatsword")
+cost = 0
+size_scale = 1.35
+health_scale = 7.0
+damage_scale = 1.5
+poise_scale = 4.0
+
+[resource]
+script = ExtResource("1_boss")
+title = "Ashbound Warden"
+boss = SubResource("Entry_warden")
+arena_size = 14

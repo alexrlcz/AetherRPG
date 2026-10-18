@@ -371,7 +371,7 @@ func _build_markers(parent: Node3D) -> void:
 
 func _build_exit_gate(nav: Node3D) -> void:
 	for label: Array in _layout.labels:
-		if label[0] == "Exit":
+		if (label[0] as String).strip_edges().to_lower() == "exit":
 			var gate := ExitGate.new()
 			gate.name = "ExitGate"
 			gate.position = _world(label[1])

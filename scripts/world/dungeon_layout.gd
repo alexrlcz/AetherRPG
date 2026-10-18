@@ -24,13 +24,20 @@ var labels: Array = []
 var props: Array = []
 ## Cell point placed at the world origin.
 var origin: Vector2 = Vector2.ZERO
-## Generated layouts: the rooms and corridors, for later passes (props,
-## enemies, the gate). Room: {rect: Rect2i, role: "start" | "path" | "exit" |
-## "side", depth: steps from the start along the main path (side rooms: their
-## parent's + 1), parent: room index or -1}. Corridor: {rect: Rect2i,
-## from: room index, to: room index, horizontal: bool}.
+## The rooms, for the props, enemy and gate passes (LevelGenerator for
+## generated levels, RoomAnalysis for hand-made maps). Room: {rect: Rect2i
+## (bounding box), cells: Array[Vector2i], role: "start" | "path" | "exit" |
+## "side", depth: rooms from the start, parent: room index or -1}.
+## Generated levels also list their corridors: {rect: Rect2i, from: room
+## index, to: room index, horizontal: bool}.
 var rooms: Array[Dictionary] = []
 var corridors: Array[Dictionary] = []
+## Floor cells (keys: Vector2i) and the cell edges interior walls block
+## (keys: edge_key()), for walking over the grid.
+var floor_cells: Dictionary = {}
+var blocked_edges: Dictionary = {}
+## Where a hand-made layout came from (a .ds path), "" when generated.
+var source: String = ""
 ## The seed this layout was generated from (0 for hand-made maps).
 var seed: int = 0
 ## The level number it was populated for (enemy budget).
@@ -41,52 +48,104 @@ var reserved_cells: Dictionary = {}
 ## Cells holding a prop with collision (PropScatter). Keys: Vector2i.
 var blocked_cells: Dictionary = {}
 ## Enemies to spawn once the level is built (EncounterPlanner):
-## {cell: Vector2 (cell point), room: int, entry: EnemyEntry, yaw: degrees}.
+## {cell: Vector2 (cell point), room: int, entry: EnemyEntry, yaw: degrees},
+## plus boss: true for the boss of a boss floor.
 var spawns: Array[Dictionary] = []
+## The boss fight of a boss floor (EncounterPlanner.place_boss()); null on
+## other levels. Its arena is the room with role "boss".
+var boss: BossEncounter
 
 
-## Where corridors enter room `index`: [{cells: Array[Vector2i] (the room's
-## cells against the doorway), inward: Vector2i (into the room)}].
+const _STEPS := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+
+
+## The doorways of room `index`: its cells you can walk out of into floor
+## that isn't the room, grouped into one entry per doorway:
+## [{cells: Array[Vector2i] (sorted), inward: Vector2i (into the room)}].
+## Works for any room shape (generated rectangles, hand-made maps).
 func room_entries(index: int) -> Array[Dictionary]:
-	var r: Rect2i = rooms[index]["rect"]
+	var cells: Array = rooms[index]["cells"]
+	var inside := {}
+	for c: Vector2i in cells:
+		inside[c] = true
+	var door_cells := {}  # cell -> inward direction
+	for c: Vector2i in cells:
+		for d in _STEPS:
+			var n: Vector2i = c + d
+			if floor_cells.has(n) and not inside.has(n) and can_step(c, n):
+				door_cells[c] = -d
 	var result: Array[Dictionary] = []
-	for c in corridors:
-		if c["from"] != index and c["to"] != index:
+	var seen := {}
+	var keys := door_cells.keys()
+	keys.sort()
+	for start: Vector2i in keys:
+		if seen.has(start):
 			continue
-		var cr: Rect2i = c["rect"]
-		var cells: Array[Vector2i] = []
-		var inward := Vector2i.ZERO
-		if c["horizontal"]:
-			var x := 0
-			if cr.end.x == r.position.x:
-				x = r.position.x
-				inward = Vector2i.RIGHT
-			elif cr.position.x == r.end.x:
-				x = r.end.x - 1
-				inward = Vector2i.LEFT
-			if inward != Vector2i.ZERO:
-				for y in range(cr.position.y, cr.end.y):
-					cells.append(Vector2i(x, y))
-		else:
-			var y := 0
-			if cr.end.y == r.position.y:
-				y = r.position.y
-				inward = Vector2i.DOWN
-			elif cr.position.y == r.end.y:
-				y = r.end.y - 1
-				inward = Vector2i.UP
-			if inward != Vector2i.ZERO:
-				for x in range(cr.position.x, cr.end.x):
-					cells.append(Vector2i(x, y))
-		if not cells.is_empty():
-			result.append({"cells": cells, "inward": inward})
+		var group: Array[Vector2i] = []
+		var queue: Array[Vector2i] = [start]
+		seen[start] = true
+		while not queue.is_empty():
+			var c: Vector2i = queue.pop_back()
+			group.append(c)
+			for d in _STEPS:
+				var n: Vector2i = c + d
+				if door_cells.has(n) and not seen.has(n) and door_cells[n] == door_cells[start]:
+					seen[n] = true
+					queue.append(n)
+		group.sort()
+		result.append({"cells": group, "inward": door_cells[start]})
 	return result
+
+
+## The room cell nearest the room's centroid.
+func room_centre(index: int) -> Vector2i:
+	var cells: Array = rooms[index]["cells"]
+	var sum := Vector2.ZERO
+	for c: Vector2i in cells:
+		sum += Vector2(c)
+	var mean := sum / cells.size()
+	var best: Vector2i = cells[0]
+	for c: Vector2i in cells:
+		if Vector2(c).distance_squared_to(mean) < Vector2(best).distance_squared_to(mean):
+			best = c
+	return best
+
+
+## Key of the edge between two 4-adjacent cells (order doesn't matter).
+static func edge_key(a: Vector2i, b: Vector2i) -> Array:
+	return [a, b] if a < b else [b, a]
+
+
+func block_edge(a: Vector2i, b: Vector2i) -> void:
+	blocked_edges[edge_key(a, b)] = true
+
+
+## True when you can walk from cell `a` to the 4-adjacent floor cell `b`.
+func can_step(a: Vector2i, b: Vector2i) -> bool:
+	return floor_cells.has(b) and not blocked_edges.has(edge_key(a, b))
+
+
+## Steps from `from` to every floor cell it can reach: {cell: steps}.
+func walk_distances(from: Vector2i) -> Dictionary:
+	var dist := {from: 0}
+	var queue: Array[Vector2i] = [from]
+	var head := 0
+	while head < queue.size():
+		var c := queue[head]
+		head += 1
+		for d in _STEPS:
+			var n: Vector2i = c + d
+			if not dist.has(n) and can_step(c, n):
+				dist[n] = dist[c] + 1
+				queue.append(n)
+	return dist
 
 
 ## Sets `floor_rings` to the outlines of a set of floor cells (keys:
 ## Vector2i, cell (x, y) covers x..x+1, y..y+1). Collinear points are merged,
 ## so a straight wall is one edge however many cells it spans.
 func set_floor_cells(cells: Dictionary) -> void:
+	floor_cells = cells.duplicate()
 	floor_rings.clear()
 	# Directed unit edges around every floor cell's empty sides, clockwise
 	# (y down), keyed by their start vertex.

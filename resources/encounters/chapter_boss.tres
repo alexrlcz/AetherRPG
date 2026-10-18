@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="BossEncounter" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/boss_encounter.gd" id="1_boss"]
+[ext_resource type="Script" path="res://scripts/world/enemy_entry.gd" id="2_entry"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_knight.tscn" id="3_knight"]
+[ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="4_greatsword"]
+[ext_resource type="Resource" path="res://resources/encounters/club_knight.tres" id="5_club"]
+
+[sub_resource type="Resource" id="Entry_champion"]
+script = ExtResource("2_entry")
+display_name = "The Cinder Champion"
+scene = ExtResource("3_knight")
+weapon = ExtResource("4_greatsword")
+cost = 0
+size_scale = 1.6
+health_scale = 12.0
+damage_scale = 2.0
+poise_scale = 6.0
+
+[resource]
+script = ExtResource("1_boss")
+title = "The Cinder Champion"
+boss = SubResource("Entry_champion")
+escorts = Array[ExtResource("2_entry")]([ExtResource("5_club")])
+escort_count = 2
+arena_size = 16

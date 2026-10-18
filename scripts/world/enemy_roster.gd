@@ -31,8 +31,8 @@ extends Resource
 func room_budget(role: String, level: int) -> float:
 	var budget := base_budget + budget_per_level * level
 	match role:
-		"start":
-			return 0.0
+		"start", "boss":
+			return 0.0  # The boss arena holds its BossEncounter instead.
 		"side":
 			return budget * side_room_scale
 		"exit":

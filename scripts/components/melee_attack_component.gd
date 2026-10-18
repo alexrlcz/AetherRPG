@@ -48,6 +48,8 @@ const HOLD_CREEP := 0.03
 ## Seconds into `animation` reached when recovery ends. 0 = full length.
 @export var animation_recovery_end: float = 0.0
 
+## Multiplier on every attack's damage (elite enemies).
+var damage_scale: float = 1.0
 var phase: Phase = Phase.READY
 var phase_time: float = 0.0
 ## The attack in progress (or the last one).
@@ -152,7 +154,7 @@ func _begin(profile: AttackProfile, chained: bool) -> void:
 	current = profile
 	has_hit = false
 	hitbox.active = false
-	hitbox.damage = profile.damage
+	hitbox.damage = roundi(profile.damage * damage_scale)
 	hitbox.profile = profile
 	_holding = false
 	_enter(Phase.WINDUP)

@@ -11,3 +11,12 @@ extends Resource
 @export var cost: int = 2
 ## First level it can appear on.
 @export var min_level: int = 1
+
+@export_group("Elite")
+## Multipliers on the scene's enemy (EnemyController): body and reach, health,
+## attack damage, and poise. 1 = a regular enemy; bosses are scaled-up
+## elites until they get their own scenes (see BossEncounter).
+@export var size_scale: float = 1.0
+@export var health_scale: float = 1.0
+@export var damage_scale: float = 1.0
+@export var poise_scale: float = 1.0

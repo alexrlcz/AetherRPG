@@ -40,6 +40,16 @@ enum State { IDLE, CHASE, ATTACK, STAGGER, DEAD }
 ## Physics layers that block sight (world).
 @export_flags_3d_physics var sight_mask: int = 1
 
+@export_group("Elite")
+## Multipliers for elites and bosses, set before the enemy enters the tree
+## (Main copies them from its EnemyEntry). size_scale grows the model, body,
+## hurtbox, reach and awareness; the others scale health, attack damage and
+## poise.
+@export var size_scale: float = 1.0
+@export var health_scale: float = 1.0
+@export var damage_scale: float = 1.0
+@export var poise_scale: float = 1.0
+
 var state: State = State.IDLE
 var target: Node3D
 var facing_direction: Vector3 = Vector3.FORWARD
@@ -60,6 +70,7 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
 func _ready() -> void:
+	_apply_elite()
 	health.max_health = stats.max_health
 	health.died.connect(_on_died)
 	health.damaged.connect(_on_damaged)
@@ -98,7 +109,7 @@ func _physics_process(delta: float) -> void:
 	if state == State.ATTACK:
 		# The attack's own forward step (the dash attack's lunge).
 		var forward := -global_basis.z
-		var lunge := melee.lunge_speed()
+		var lunge := melee.lunge_speed() * size_scale
 		velocity.x += forward.x * lunge
 		velocity.z += forward.z * lunge
 	_apply_rotation(delta)
@@ -183,10 +194,53 @@ func _can_dash() -> bool:
 func _on_weapon_equipped(new_weapon: WeaponDefinition) -> void:
 	melee.cancel()
 	attack_profile = new_weapon.enemy_attack
-	attack_range = new_weapon.enemy_attack_range
+	attack_range = new_weapon.enemy_attack_range * size_scale
 	dash_attack = new_weapon.enemy_dash_attack
-	dash_min_range = new_weapon.enemy_dash_min_range
-	dash_max_range = new_weapon.enemy_dash_max_range
+	dash_min_range = new_weapon.enemy_dash_min_range * size_scale
+	dash_max_range = new_weapon.enemy_dash_max_range * size_scale
+
+
+## True for enemies scaled up as elites or bosses.
+func is_elite() -> bool:
+	return size_scale != 1.0 or health_scale != 1.0 or damage_scale != 1.0 or poise_scale != 1.0
+
+
+## Applies the Elite multipliers: its own copy of `stats`, a bigger model and
+## colliders (shapes are shared between instances, so they are copied too).
+func _apply_elite() -> void:
+	if not is_elite():
+		return
+	stats = stats.duplicate()
+	stats.max_health = roundi(stats.max_health * health_scale)
+	stats.poise *= poise_scale
+	stats.knockback_scale /= size_scale
+	stats.detection_radius *= size_scale
+	stats.lose_interest_radius *= size_scale
+	melee.damage_scale = damage_scale
+	eye_height *= size_scale
+	var visual := get_node_or_null(^"Visual") as Node3D
+	if visual:
+		visual.scale *= size_scale
+	for shape_node in [get_node_or_null(^"CollisionShape3D"), get_node_or_null(^"Hurtbox/CollisionShape3D")]:
+		var node := shape_node as CollisionShape3D
+		if node == null or not node.shape is CapsuleShape3D:
+			continue
+		var capsule := node.shape.duplicate() as CapsuleShape3D
+		capsule.radius *= size_scale
+		capsule.height *= size_scale
+		node.shape = capsule
+		node.position *= size_scale
+	for path in [^"HealthBar", ^"DamageNumbers"]:
+		var node := get_node_or_null(path) as Node3D
+		if node:
+			node.position *= size_scale
+	nav_agent.radius *= size_scale
+	nav_agent.height *= size_scale
+	var ragdoll := get_node_or_null(^"Ragdoll") as RagdollComponent
+	if ragdoll:
+		# Heavier bodies are thrown less far by the killing blow.
+		ragdoll.knockback_speed /= size_scale
+		ragdoll.knockback_lift /= size_scale
 
 
 func _process_attack() -> void:

@@ -37,6 +37,10 @@ var layout_attempts: int = 20
 ## bare layout (no props, no enemies).
 var roster: EnemyRoster
 var populate: bool = true
+## Role and side (cells; 0 = random like the others) of the last room on the
+## main path. generate_boss() makes it a square "boss" arena.
+var exit_role: String = "exit"
+var exit_room_size: int = 0
 
 const DIRECTIONS := [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
 
@@ -63,12 +67,29 @@ func generate(level_seed: int, level: int = 1) -> DungeonLayout:
 	return null
 
 
+## A boss floor (step 6): a short approach of 1-2 rooms (no branches, no
+## loop), then a square arena of `encounter.arena_size` holding the boss and
+## its escorts, with the exit gate against the arena's far wall.
+func generate_boss(level_seed: int, level: int, encounter: BossEncounter) -> DungeonLayout:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([level_seed, "boss floor"])
+	main_rooms = 2 + rng.randi_range(1, 2)
+	branches = 0
+	loop_chance = 0.0
+	exit_role = "boss"
+	exit_room_size = encounter.arena_size
+	var layout := generate(level_seed, level)
+	if layout and populate:
+		EncounterPlanner.new().place_boss(layout, encounter, roster if roster else load(DEFAULT_ROSTER))
+	return layout
+
+
 func _try_layout() -> bool:
 	_rooms.clear()
 	_corridors.clear()
 	_rooms.append({"rect": Rect2i(0, 0, _size(), _size()), "role": "start", "depth": 0, "parent": -1})
 	for i in range(1, main_rooms):
-		var role := "exit" if i == main_rooms - 1 else "path"
+		var role := exit_role if i == main_rooms - 1 else "path"
 		if _attach(i - 1, role, i, true) < 0:
 			return false
 	# Side branches off the rooms between start and exit.
@@ -95,6 +116,8 @@ func _attach(parent: int, role: String, depth: int, outward: bool = false) -> in
 	for attempt in place_attempts:
 		var dir: Vector2i = DIRECTIONS[_rng.randi_range(0, 3)]
 		var size := Vector2i(_size(), _size())
+		if role == exit_role and exit_room_size > 0:
+			size = Vector2i(exit_room_size, exit_room_size)
 		var length := _rng.randi_range(min_corridor, max_corridor)
 		var corridor: Rect2i
 		var room: Rect2i
@@ -225,11 +248,35 @@ func _to_layout(level_seed: int) -> DungeonLayout:
 			for y in [r.position.y, r.end.y]:
 				layout.doors.append(_door(Vector2(r.position.x, y - 0.1), Vector2(r.end.x, y + 0.1)))
 	layout.rooms.assign(_rooms.duplicate(true))
+	for room in layout.rooms:
+		var r: Rect2i = room["rect"]
+		var room_cells: Array[Vector2i] = []
+		for y in range(r.position.y, r.end.y):
+			for x in range(r.position.x, r.end.x):
+				room_cells.append(Vector2i(x, y))
+		room["cells"] = room_cells
 	layout.corridors.assign(_corridors.duplicate(true))
 	layout.labels.append(["Start", _centre(_rooms[0]["rect"])])
-	layout.labels.append(["Exit", _centre(_rooms[main_rooms - 1]["rect"])])
+	layout.labels.append(["Exit", _exit_point()])
 	layout.centre_origin()
 	return layout
+
+
+## The gate's spot: the exit room's centre, or in a boss arena 2.5 cells
+## from the wall opposite the way in (the fight happens in front of it).
+func _exit_point() -> Vector2:
+	var index := main_rooms - 1
+	var rect: Rect2i = _rooms[index]["rect"]
+	var centre := _centre(rect)
+	if exit_role != "boss":
+		return centre
+	for c in _corridors:
+		if c["to"] == index:
+			var way_in := centre - _centre(c["rect"])
+			var axis := Vector2(signf(way_in.x), 0) if c["horizontal"] else Vector2(0, signf(way_in.y))
+			var half := (rect.size.x if c["horizontal"] else rect.size.y) * 0.5
+			return centre + axis * (half - 2.5)
+	return centre
 
 
 static func _centre(rect: Rect2i) -> Vector2:
