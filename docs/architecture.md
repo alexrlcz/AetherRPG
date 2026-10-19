@@ -3,9 +3,31 @@
 ## World and camera
 
 - The world is true 3D (Godot 4.7, Forward+ renderer, Jolt physics).
-- The camera is a fixed orthographic isometric view (`IsoCameraRig`): yaw 45°,
-  pitch 35.264° (true isometric). The player cannot rotate it. It smoothly
-  follows its target; the mouse wheel zooms by changing the orthographic `size`.
+- The camera (`IsoCameraRig`) smoothly follows its target and blends from an
+  isometric overview into a third-person view as it zooms in. It is always
+  perspective; `zoom` runs 0 (furthest) to 1 (closest):
+  - 0 .. `overview_zoom_end` (0.5): the overview. Pitch 35.264° (true
+    isometric), a narrow 25° field of view from 41-68 m away, so it looks
+    close to the old orthographic view; the visible height at the target
+    shrinks from `max_view_height` 30 m to `min_view_height` 10 m (start:
+    zoom 0.3 = 18 m, the old default).
+  - `overview_zoom_end` .. 1: the close-up (smoothstep blend). The distance
+    falls exponentially to `close_distance` 3.5 m, the fov widens to 55°, the
+    pitch flattens to 12° and the look point rises to `close_look_height`
+    1.4 m (the chest): a third-person camera.
+  - The wheel steps `zoom` by 0.08 and the rig glides there. Holding
+    `camera_rotate` (middle mouse) and dragging orbits the yaw (0.3° per
+    physical pixel, `screen_relative`, so window stretch doesn't change it).
+    Start yaw 45°.
+- Walls are full height on every side and use `shaders/wall_cutout.gdshader`:
+  each frame the rig sets the global shader parameters `cutout_camera`,
+  `cutout_target` (player + 1 m) and `cutout_radius` (2.2 m in the overview,
+  1.0 m close up; 0 = off), registered in project.godot `[shader_globals]`.
+  Wall pixels within the radius of the camera-to-player line, and in front of
+  the player, are discarded with a dither (so walls stay opaque-pass). Only
+  walls are cut: torches on a cut wall, door frames and props are not.
+- The directional fill light's `directional_shadow_max_distance` is 150 m
+  because the overview camera sits up to ~70 m from the player.
 - Gameplay code never depends on the camera except to convert input
   (screen-relative WASD, mouse aim). Simulation stays in world space, which
   keeps a future server-authoritative multiplayer model possible.
@@ -16,7 +38,8 @@
 |----------------|--------------------|-----------|
 | `move_*`       | WASD / arrow keys  | Screen-relative movement; character faces movement direction. |
 | `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
-| `lock_on`      | Middle mouse       | Lock onto the nearest visible enemy within 15 m, or release the lock. While locked the character always faces the target and strafes like `aim`; the lock wins over `aim`. |
+| `camera_rotate` (hold) | Middle mouse | Drag to orbit the camera around the player. |
+| `lock_on`      | Q                  | Lock onto the nearest visible enemy within 15 m, or release the lock. While locked the character always faces the target and strafes like `aim`; the lock wins over `aim`. |
 | `cycle_target` | Tab                | Next lock target, nearest to farthest, wrapping (locks the nearest if unlocked). |
 | `attack`       | Left mouse (hold to repeat) | Light combo: Rising Slash -> Sweep -> Finisher -> Rising Slash... (see Combat feel). |
 | `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
@@ -24,7 +47,7 @@
 | `jump`         | Space              | Jump (see Player movement feel). |
 | `sprint` (hold) | Left Alt          | Sprint at 8 m/s; faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
 | `walk_toggle`  | Left Ctrl          | Toggle walking (1.6 m/s, `Walk_Formal` cycle). |
-| `zoom_in/out`  | Mouse wheel        | Orthographic zoom. |
+| `zoom_in/out`  | Mouse wheel        | Zoom; zooming in past the overview blends into a third-person view. |
 | `restart`      | R                  | After death (1 s delay): start a new run at level 1 (new seed). |
 | `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **generate a level** (seed + Generate, or Random level), player appearance and **player weapon** (Sword / Greatsword). |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
@@ -784,10 +807,9 @@ overhead cut.
   `Markers`, e.g. `Start`, `BossRoom`). 1 grid cell (36 px) = `CELL` 2 m;
   map x -> +X, map y -> +Z, bounding-box centre = origin.
 - Floor = one box per run of grid cells; walls = boxes on the void side of
-  each edge (2.6 m). Outer walls facing the camera (+X/+Z) are drawn only
-  0.9 m tall so they don't hide the room, but their collision stays full
-  height (movement and enemy line of sight are unaffected). Torches go on the
-  other walls (one per edge >= 4 cells, two from 8).
+  each edge (2.6 m), all full height (the camera orbits; the wall shader cuts
+  them away between the camera and the player). Torches go on every wall (one
+  per edge >= 4 cells, two from 8).
 - Props are `[kind, cell x, cell y, yaw]` entries (dungeon_01: the table in
   `Dungeon01Layout`): pillars, crates, barrels, tables, chest, rubble, statue,
   braziers, campfire, throne (static bodies under the navigation region) and
@@ -831,7 +853,7 @@ assets/characters/universal/         Base character bodies, hair parts, animatio
 resources/characters/                CharacterAppearance .tres files
 (unused)                             knight_rig.tscn, build_knight_rig.gd, knight_post_import.gd, assets/characters/knight/
 assets/equipment/                    Weapon and armour FBX meshes
-scenes/camera/iso_camera_rig.tscn
+scenes/camera/iso_camera_rig.tscn    Follow camera: overview -> third-person zoom, orbit
 scenes/ui/hud.tscn                   Player health bar, "Defeated" + restart hint
 scenes/debug/debug_menu.tscn         F1 debug panel
 scripts/main/main.gd                 Restart flow (on the Main node)
@@ -858,15 +880,16 @@ scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
 resources/combat/                    AttackProfiles: player sword (combo A/B/C, cleave, dash; slash and rising cut unused), greatsword (gs_*), knights (club swing, dash, gs_knight_*)
 resources/weapons/                   WeaponDefinitions: sword, club, greatsword
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
-tests/*_test.gd                      Also dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population, run and map_pool suites (same command, other file)
+tests/*_test.gd                      Also camera, dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population, run and map_pool suites (same command, other file)
 tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd
-scripts/player/lock_on_component.gd  Enemy lock-on (middle mouse / Tab) and target marker
+scripts/player/lock_on_component.gd  Enemy lock-on (Q / Tab) and target marker
 scenes/enemies/enemy_knight.tscn     Melee enemy (ash-skinned humanoid + club)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
 resources/enemies/                   EnemyStats and enemy CharacterAppearance .tres files
 resources/navigation/                Baked navmeshes
 shaders/billboard_bar.gdshader
+shaders/wall_cutout.gdshader         Stone walls, see-through between the camera and the player
 scripts/ui/world_health_bar.gd
 scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd

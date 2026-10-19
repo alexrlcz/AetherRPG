@@ -1,7 +1,7 @@
 class_name DungeonBuilder
 extends RefCounted
 ## Turns a DungeonLayout into a level scene: floor, outer and partition walls
-## (low on the camera side, full-height collision), door frames, wall torches,
+## (see-through between the camera and the player), door frames, wall torches,
 ## props, decor, hazards, lighting, a Marker3D per label and an ExitGate on an
 ## "Exit" label (under the navigation region: its pillars bake into the
 ## navmesh). Used at runtime
@@ -18,12 +18,10 @@ extends RefCounted
 ## World metres per map grid cell.
 const CELL := 2.0
 const WALL_HEIGHT := 2.6
-## Outer walls between the camera and the room are drawn this tall so they don't
-## hide the room; their collision stays WALL_HEIGHT (movement, line of sight).
-const LOW_WALL_HEIGHT := 0.9
-## Horizontal direction from a target toward the camera (IsoCameraRig yaw 45°
-## puts it at +X +Z). Walls facing it are low and get no torches.
-const CAMERA_SIDE := Vector2(0.7071, 0.7071)
+## Walls are full height on every side (the camera orbits); their shader
+## (shaders/wall_cutout.gdshader) turns them see-through between the camera
+## and the player.
+const WALL_SHADER := preload("res://shaders/wall_cutout.gdshader")
 const WALL_THICKNESS := 0.6
 const FLOOR_THICKNESS := 1.0
 ## Map pixels between a door rectangle and the wall gap it sits in.
@@ -125,8 +123,6 @@ func _build_walls(parent: Node3D) -> void:
 	var body := _static_body(parent, "Walls")
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var st_low := SurfaceTool.new()
-	st_low.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var t := WALL_THICKNESS / CELL  # thickness in cells
 	for ring in _layout.floor_rings:
 		for i in ring.size():
@@ -141,29 +137,25 @@ func _build_walls(parent: Node3D) -> void:
 			# Extend into convex corners only; reflex corners would poke into the room.
 			var ext_a := t if not _is_floor(a - d * t * 0.5 + n * t * 0.5) else 0.0
 			var ext_b := t if not _is_floor(b + d * t * 0.5 + n * t * 0.5) else 0.0
-			var low := n.dot(CAMERA_SIDE) > 0.1
-			_add_wall_segment(body, st_low if low else st, a - d * ext_a + n * t * 0.5,
-					b + d * ext_b + n * t * 0.5, LOW_WALL_HEIGHT if low else WALL_HEIGHT)
+			_add_wall_segment(body, st, a - d * ext_a + n * t * 0.5, b + d * ext_b + n * t * 0.5)
 	for line: PackedVector2Array in _layout.partitions:
 		for i in line.size() - 1:
 			var d := (line[i + 1] - line[i]).normalized()
 			# Ends run into the outer wall / door frame.
-			_add_wall_segment(body, st, line[i] - d * t * 0.5, line[i + 1] + d * t * 0.5, WALL_HEIGHT)
+			_add_wall_segment(body, st, line[i] - d * t * 0.5, line[i + 1] + d * t * 0.5)
 	_add_merged_mesh(body, st, _mats["wall"], "Mesh")
-	_add_merged_mesh(body, st_low, _mats["wall"], "LowMesh")
 
 
-## Adds a wall whose centre line runs from a to b (cells): a full-height
-## collision box and a visual box `visual_height` tall.
-func _add_wall_segment(body: StaticBody3D, st: SurfaceTool, a: Vector2, b: Vector2,
-		visual_height: float) -> void:
+## Adds a WALL_HEIGHT wall whose centre line runs from a to b (cells): a
+## collision box and a visual box.
+func _add_wall_segment(body: StaticBody3D, st: SurfaceTool, a: Vector2, b: Vector2) -> void:
 	var wa := _world(a)
 	var wb := _world(b)
 	var length := wa.distance_to(wb)
 	var basis := Basis(Vector3.UP, -atan2(wb.z - wa.z, wb.x - wa.x))
 	var centre := (wa + wb) * 0.5
-	_append_box(st, Vector3(length, visual_height, WALL_THICKNESS),
-			Transform3D(basis, centre + Vector3.UP * visual_height * 0.5))
+	_append_box(st, Vector3(length, WALL_HEIGHT, WALL_THICKNESS),
+			Transform3D(basis, centre + Vector3.UP * WALL_HEIGHT * 0.5))
 	_add_box_shape(body, Vector3(length, WALL_HEIGHT, WALL_THICKNESS),
 			Transform3D(basis, centre + Vector3.UP * WALL_HEIGHT * 0.5))
 
@@ -211,8 +203,6 @@ func _build_torches(parent: Node3D) -> void:
 			var n := Vector2(-d.y, d.x)
 			if not _is_floor((a + b) * 0.5 + n * 0.1):
 				n = -n  # n points into the room
-			if n.dot(CAMERA_SIDE) < -0.1:
-				continue  # low camera-side wall
 			var spots := [0.5] if length < TORCH_MIN_EDGE * 2.0 else [0.25, 0.75]
 			for f: float in spots:
 				var torch := _make_torch()
@@ -403,6 +393,8 @@ func _build_environment(parent: Node3D) -> void:
 	moon.light_color = Color(0.7, 0.75, 0.95)
 	moon.light_energy = 0.45
 	moon.shadow_enabled = true
+	# The overview camera sits up to ~70 m from the player (IsoCameraRig).
+	moon.directional_shadow_max_distance = 150.0
 	parent.add_child(moon)
 
 
@@ -420,7 +412,12 @@ func _make_materials() -> void:
 	ramp.set_color(1, Color(1, 1, 1))
 	tex.color_ramp = ramp
 	_mats["floor"] = _stone_material(Color(0.5, 0.47, 0.43), tex, 0.12)
-	_mats["wall"] = _stone_material(Color(0.42, 0.39, 0.37), tex, 0.2)
+	var wall := ShaderMaterial.new()
+	wall.shader = WALL_SHADER
+	wall.set_shader_parameter("albedo", Color(0.42, 0.39, 0.37))
+	wall.set_shader_parameter("noise_texture", tex)
+	wall.set_shader_parameter("uv_scale", 0.2)
+	_mats["wall"] = wall
 	_mats["stone"] = _stone_material(Color(0.55, 0.53, 0.5), tex, 0.5)
 	_mats["stone_dark"] = _stone_material(Color(0.25, 0.24, 0.26), tex, 0.5)
 	_mats["statue"] = _flat(Color(0.62, 0.66, 0.6), 0.8)

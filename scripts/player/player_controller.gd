@@ -6,7 +6,7 @@ extends CharacterBody3D
 ## - Not aiming: the character turns to face its movement direction.
 ## - Holding "aim" (right mouse): the character keeps facing the mouse cursor
 ##   while moving, so it can walk backwards or strafe.
-## - "lock_on" (middle mouse) locks onto the nearest enemy (`lock_on`), and
+## - "lock_on" (Q) locks onto the nearest enemy (`lock_on`), and
 ##   "cycle_target" (Tab) steps to the next one. While locked the character
 ##   always faces the target, like holding "aim"; the lock wins over "aim".
 ## - "attack" (left mouse) steps through `light_combo`; "heavy_attack" (E)

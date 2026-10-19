@@ -1,26 +1,69 @@
 class_name IsoCameraRig
 extends Node3D
-## Fixed-angle orthographic isometric camera that smoothly follows a target.
+## Follow camera that blends from an isometric overview into a close
+## third-person view as it zooms in, and orbits around the target.
 ##
-## The rig sits on the target's position and is rotated (yaw, then pitch);
-## the child Camera3D is pushed back along the rig's local +Z axis.
-## The angle is fixed by design: the player cannot rotate the camera.
+## The rig sits on the target's position (plus a look height) and is rotated
+## (yaw, then pitch); the child Camera3D is pushed back along the rig's local
+## +Z axis. The camera is always perspective:
+## - zoom 0 .. `overview_zoom_end`: the overview. A narrow field of view from
+##   far away looks close to the old orthographic isometric view; zooming in
+##   shrinks the visible height at the target from `max_view_height` to
+##   `min_view_height`, at the isometric pitch.
+## - `overview_zoom_end` .. 1: the close-up. The camera moves in to
+##   `close_distance`, the field of view widens, the pitch flattens to
+##   `close_pitch_degrees` and the look point rises to the character's chest,
+##   so at full zoom it is a third-person camera behind the character.
+## The mouse wheel steps the zoom (smoothed); dragging with "camera_rotate"
+## (middle mouse) held orbits the yaw.
+##
+## Every frame the rig also sets the global shader parameters `cutout_camera`,
+## `cutout_target` and `cutout_radius` (project.godot [shader_globals]); the
+## wall shader (shaders/wall_cutout.gdshader) cuts a see-through hole wherever
+## a wall stands between the camera and the target.
 
 @export var target_path: NodePath
-## Downward tilt. 35.264 is true isometric; 30.0 gives the classic 2:1 look.
-@export_range(1.0, 89.0) var pitch_degrees: float = 35.264
 @export var yaw_degrees: float = 45.0
-## Distance from the target. Only affects clipping, not apparent size (orthographic).
-@export var distance: float = 50.0
 ## Higher values follow more tightly. 0 disables smoothing.
 @export var follow_smoothing: float = 10.0
 
+@export_group("Rotation")
+## Yaw degrees per pixel of mouse movement while "camera_rotate" is held.
+@export var rotate_sensitivity: float = 0.3
+
 @export_group("Zoom")
-## Orthographic size: the visible height of the view in world units.
-@export var zoom_size: float = 18.0
-@export var min_zoom_size: float = 8.0
-@export var max_zoom_size: float = 30.0
-@export var zoom_step: float = 2.0
+## 0 = furthest overview, 1 = closest third-person view.
+@export_range(0.0, 1.0) var zoom: float = 0.3
+@export var zoom_step: float = 0.08
+## Higher values reach a new zoom faster. 0 disables smoothing.
+@export var zoom_smoothing: float = 12.0
+## Zoom at which the overview ends and the close-up blend begins.
+@export_range(0.05, 0.95) var overview_zoom_end: float = 0.5
+
+@export_group("Overview")
+## Downward tilt. 35.264 is true isometric.
+@export_range(1.0, 89.0) var overview_pitch_degrees: float = 35.264
+## Narrow field of view, so the overview has little perspective distortion.
+@export_range(1.0, 90.0) var overview_fov: float = 25.0
+## Visible height (m) at the target at zoom 0 and at `overview_zoom_end`.
+@export var max_view_height: float = 30.0
+@export var min_view_height: float = 10.0
+
+@export_group("Close-up")
+@export_range(-30.0, 89.0) var close_pitch_degrees: float = 12.0
+@export_range(1.0, 120.0) var close_fov: float = 55.0
+## Camera distance (m) from the look point at zoom 1.
+@export var close_distance: float = 3.5
+## Look point height (m) above the target's origin at zoom 1 (0 in the overview).
+@export var close_look_height: float = 1.4
+
+@export_group("Wall Cutout")
+## Radius (m) of the see-through hole around the camera-to-target line, in
+## the overview and in the close-up.
+@export var overview_cutout_radius: float = 2.2
+@export var close_cutout_radius: float = 1.0
+## Height (m) above the target's origin that the hole is aimed at.
+@export var cutout_target_height: float = 1.0
 
 @export_group("Impact Shake")
 ## Largest camera offset (world units) at full strength.
@@ -38,8 +81,16 @@ const GROUP := &"camera_rig"
 
 ## Strength of the most recent add_impulse() (debugging, tests).
 var last_impulse_strength: float = 0.0
+## The wall cutout values last sent to the shader globals (debugging, tests).
+var cutout_camera: Vector3
+var cutout_target: Vector3
+var cutout_radius: float = 0.0
 
 var _target: Node3D
+## Rig position without the look height (follows the target smoothly).
+var _follow_position: Vector3
+var _zoom_goal: float
+var _rotating: bool = false
 var _trauma: float = 0.0
 var _punch_dir: Vector2 = Vector2.ZERO
 var _shake_time: float = 0.0
@@ -61,7 +112,108 @@ func get_shake_strength() -> float:
 	return _trauma
 
 
+func _ready() -> void:
+	add_to_group(GROUP)
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	_zoom_goal = zoom
+	_follow_position = global_position
+	if not target_path.is_empty():
+		set_target(get_node(target_path) as Node3D)
+	_apply_view()
+
+
+func set_target(new_target: Node3D) -> void:
+	_target = new_target
+	if _target:
+		_follow_position = _target.global_position
+		_apply_view()
+
+
+## Sets the zoom goal (0 = overview, 1 = third-person); `instant` skips the glide.
+func set_zoom(value: float, instant: bool = false) -> void:
+	_zoom_goal = clampf(value, 0.0, 1.0)
+	if instant:
+		zoom = _zoom_goal
+		_apply_view()
+
+
+func get_zoom_goal() -> float:
+	return _zoom_goal
+
+
+## Turns the camera to `degrees` of yaw around the target.
+func set_yaw(degrees: float) -> void:
+	yaw_degrees = wrapf(degrees, -180.0, 180.0)
+	_apply_view()
+
+
+## 0 in the overview, rising to 1 at the closest third-person view.
+func get_close_blend() -> float:
+	if zoom <= overview_zoom_end:
+		return 0.0
+	return smoothstep(0.0, 1.0, (zoom - overview_zoom_end) / (1.0 - overview_zoom_end))
+
+
+func get_pitch_degrees() -> float:
+	return lerpf(overview_pitch_degrees, close_pitch_degrees, get_close_blend())
+
+
+func get_fov() -> float:
+	return lerpf(overview_fov, close_fov, get_close_blend())
+
+
+## Camera distance from the look point for the current zoom.
+func get_distance() -> float:
+	var overview_end_distance := _distance_for_height(min_view_height, overview_fov)
+	if zoom <= overview_zoom_end:
+		var t := zoom / overview_zoom_end
+		return _distance_for_height(lerpf(max_view_height, min_view_height, t), overview_fov)
+	# Exponential blend: equal wheel steps feel like equal zoom steps.
+	return overview_end_distance * pow(close_distance / overview_end_distance, get_close_blend())
+
+
+func get_look_height() -> float:
+	return close_look_height * get_close_blend()
+
+
+func _distance_for_height(view_height: float, fov_degrees: float) -> float:
+	return view_height * 0.5 / tan(deg_to_rad(fov_degrees) * 0.5)
+
+
 func _process(delta: float) -> void:
+	_update_shake(delta)
+	_update_cutout()
+
+
+func _physics_process(delta: float) -> void:
+	if _target:
+		var goal := _target.global_position
+		if follow_smoothing <= 0.0:
+			_follow_position = goal
+		else:
+			_follow_position = _follow_position.lerp(goal, 1.0 - exp(-follow_smoothing * delta))
+	if zoom_smoothing <= 0.0:
+		zoom = _zoom_goal
+	else:
+		zoom = lerpf(zoom, _zoom_goal, 1.0 - exp(-zoom_smoothing * delta))
+		if absf(zoom - _zoom_goal) < 0.0005:
+			zoom = _zoom_goal
+	_apply_view()
+
+
+func _apply_view() -> void:
+	if not is_node_ready():
+		return
+	global_position = _follow_position + Vector3.UP * get_look_height()
+	rotation = Vector3(deg_to_rad(-get_pitch_degrees()), deg_to_rad(yaw_degrees), 0.0)
+	var distance := get_distance()
+	camera.position = Vector3(0.0, 0.0, distance)
+	camera.fov = get_fov()
+	camera.near = 0.05
+	camera.far = distance + 120.0
+
+
+func _update_shake(delta: float) -> void:
 	if _trauma <= 0.0:
 		return
 	var real_delta := minf(delta / maxf(Engine.time_scale, 0.0001), 0.1)
@@ -75,40 +227,31 @@ func _process(delta: float) -> void:
 	camera.v_offset = offset.y
 
 
-func _ready() -> void:
-	add_to_group(GROUP)
-	rotation = Vector3(deg_to_rad(-pitch_degrees), deg_to_rad(yaw_degrees), 0.0)
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.position = Vector3(0.0, 0.0, distance)
-	camera.size = zoom_size
-	camera.far = distance * 3.0
-	if not target_path.is_empty():
-		set_target(get_node(target_path) as Node3D)
-
-
-func set_target(new_target: Node3D) -> void:
-	_target = new_target
-	if _target:
-		global_position = _target.global_position
-
-
-func _physics_process(delta: float) -> void:
-	if not _target:
-		return
-	var goal := _target.global_position
-	if follow_smoothing <= 0.0:
-		global_position = goal
-	else:
-		global_position = global_position.lerp(goal, 1.0 - exp(-follow_smoothing * delta))
+func _update_cutout() -> void:
+	cutout_radius = 0.0
+	cutout_target = Vector3.ZERO
+	cutout_camera = camera.global_position
+	if _target and camera.is_current():
+		cutout_radius = lerpf(overview_cutout_radius, close_cutout_radius, get_close_blend())
+		cutout_target = _target.global_position + Vector3.UP * cutout_target_height
+	RenderingServer.global_shader_parameter_set(&"cutout_camera", cutout_camera)
+	RenderingServer.global_shader_parameter_set(&"cutout_target", cutout_target)
+	RenderingServer.global_shader_parameter_set(&"cutout_radius", cutout_radius)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("zoom_in"):
-		_set_zoom(zoom_size - zoom_step)
+		set_zoom(_zoom_goal + zoom_step)
 	elif event.is_action_pressed("zoom_out"):
-		_set_zoom(zoom_size + zoom_step)
+		set_zoom(_zoom_goal - zoom_step)
+	elif event.is_action_pressed("camera_rotate"):
+		_rotating = true
+	elif event is InputEventMouseMotion and _rotating:
+		# screen_relative: physical pixels, so the turn rate ignores window stretch.
+		set_yaw(yaw_degrees - (event as InputEventMouseMotion).screen_relative.x * rotate_sensitivity)
 
 
-func _set_zoom(value: float) -> void:
-	zoom_size = clampf(value, min_zoom_size, max_zoom_size)
-	camera.size = zoom_size
+func _input(event: InputEvent) -> void:
+	# Releases are always seen, even over UI, so the drag never sticks.
+	if event.is_action_released("camera_rotate"):
+		_rotating = false
