@@ -7,6 +7,7 @@ script = ExtResource("1_profile")
 display_name = "Slide Strike"
 weight = 1
 damage = 28
+stamina_cost = 26.0
 windup = 0.9
 strike_duration = 0.17
 recovery = 0.6

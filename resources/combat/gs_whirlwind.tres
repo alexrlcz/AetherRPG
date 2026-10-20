@@ -7,6 +7,7 @@ script = ExtResource("1_profile")
 display_name = "Whirlwind"
 weight = 1
 damage = 38
+stamina_cost = 30.0
 windup = 0.3
 strike_duration = 1.0
 recovery = 0.5

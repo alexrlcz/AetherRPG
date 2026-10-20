@@ -25,10 +25,17 @@ extends CharacterBody3D
 ##   but not its wind-up or strike; presses are buffered like attacks. During
 ##   the roll the character is committed (facing locked, other input
 ##   buffered); movement or a buffered attack cuts the get-up recovery short.
-## - "sprint" (hold Left Alt) raises the top speed to `sprint_speed`. Sprinting
-##   faces the movement direction even while aiming or locked on. A light /
-##   heavy attack started at sprint speed is the `dash_attack` /
-##   `dash_heavy_attack`.
+## - "sprint" (Left Alt) toggles sprinting (`sprint_toggled`): while on and
+##   moving, the top speed is `sprint_speed`. Sprinting faces the movement
+##   direction even while aiming or locked on. A light / heavy attack started
+##   at sprint speed is the `dash_attack` / `dash_heavy_attack`. Sprinting
+##   drains `stamina`. The toggle breaks (has to be pressed again) when the
+##   player stops (movement input ends while sprinting; it can still be
+##   switched on while standing, ready for the first step), starts an
+##   attack, takes damage, or runs out of stamina.
+## - Attacks and dodges pay stamina through their components (`stamina` is
+##   shared with MeleeAttackComponent and DodgeComponent); while exhausted
+##   their presses stay buffered but don't start.
 ## - The attacks come from the equipped weapon (`weapon`, WeaponComponent),
 ##   which can be swapped at runtime (debug menu); the exported attack fields
 ##   are only used without one.
@@ -46,10 +53,12 @@ signal aim_stopped
 enum AttackInput { NONE, LIGHT, HEAVY }
 
 @export var move_speed: float = 6.0
-## Top speed while "sprint" is held.
+## Top speed while sprinting.
 @export var sprint_speed: float = 8.0
 ## Top speed while the walk toggle is on.
 @export var walk_speed: float = 1.6
+## Stamina drained per second while sprinting.
+@export var sprint_stamina_per_second: float = 15.0
 @export_group("Movement Feel")
 ## Speed gained per second toward the input direction (m/s²).
 ## move_speed / acceleration = seconds to reach full speed from standstill.
@@ -103,6 +112,8 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 ## When this reaches zero, player input is disabled.
 @export var health: HealthComponent
 @export var melee: MeleeAttackComponent
+## Pays for attacks, dodges and sprinting (optional).
+@export var stamina: StaminaComponent
 
 var is_aiming: bool = false
 ## Facing is decoupled from movement (aiming or locked on, not sprinting); the
@@ -110,8 +121,11 @@ var is_aiming: bool = false
 var is_strafing: bool:
 	get:
 		return (is_aiming or is_locked_on()) and not is_sprinting
-## "sprint" held while moving and free to move.
+## Sprint toggle on while moving and free to move.
 var is_sprinting: bool = false
+## Sprint toggle ("sprint", Left Alt); on until pressed again, or broken by
+## stopping, attacking, taking damage or exhaustion (_stop_sprint()).
+var sprint_toggled: bool = false
 ## Walk toggle on: top speed `walk_speed`; the animator plays the formal walk.
 var is_walking: bool = false
 var is_dead: bool = false
@@ -135,6 +149,7 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 func _ready() -> void:
 	if health:
 		health.died.connect(_on_died)
+		health.damaged.connect(_on_damaged)
 	if reaction:
 		reaction.staggered.connect(_on_staggered)
 	if melee:
@@ -143,6 +158,8 @@ func _ready() -> void:
 		weapon.equipped.connect(_on_weapon_equipped)
 		if weapon.current:
 			_on_weapon_equipped(weapon.current)
+	if stamina:
+		stamina.exhausted.connect(_on_exhausted)
 
 
 func _physics_process(delta: float) -> void:
@@ -172,7 +189,10 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var move_dir := _camera_relative_direction(input)
 	var grounded := is_on_floor()
-	var sprint_held := Input.is_action_pressed("sprint") and move_dir != Vector3.ZERO
+	if is_sprinting and move_dir == Vector3.ZERO:
+		_stop_sprint()  # Let go of the direction keys: the sprint ends.
+	var sprint_held := sprint_toggled and move_dir != Vector3.ZERO \
+		and (stamina == null or stamina.can_act())
 	if dodge and not reacting and grounded:
 		_update_dodge(move_dir)
 	var dodging := dodge != null and dodge.is_dodging()
@@ -184,6 +204,8 @@ func _physics_process(delta: float) -> void:
 	var attacking := melee != null and melee.is_busy()
 	var winding_up := attacking and melee.phase == MeleeAttackComponent.Phase.WINDUP
 	is_sprinting = sprint_held and not attacking and not reacting and not dodging
+	if is_sprinting and stamina:
+		stamina.drain(sprint_stamina_per_second * delta)
 
 	if attacking or reacting or dodging:
 		move_dir = Vector3.ZERO  # Committed: only lunge / knockback / roll move the body.
@@ -240,6 +262,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		request_dodge()
 	elif event.is_action_pressed("jump"):
 		request_jump()
+	elif event.is_action_pressed("sprint"):
+		sprint_toggled = not sprint_toggled
 	elif event.is_action_pressed("walk_toggle"):
 		is_walking = not is_walking
 	elif event.is_action_pressed("lock_on"):
@@ -326,6 +350,7 @@ func _update_attacks(sprinting: bool = false) -> void:
 		_begin_attack(profile, false)
 	elif melee.start():
 		_stop_dead()  # No profiles assigned: the component's own fields.
+		_stop_sprint()
 
 
 func _next_profile(kind: AttackInput) -> AttackProfile:
@@ -354,6 +379,7 @@ func _begin_attack(profile: AttackProfile, chained: bool) -> void:
 		if forward.length_squared() > 0.0001:
 			facing_direction = forward.normalized()
 	_stop_dead()
+	_stop_sprint()
 
 
 ## Hard stop: no slide into the swing.
@@ -397,13 +423,29 @@ func _on_staggered(event: HitEvent) -> void:
 		rotation.y = atan2(-facing_direction.x, -facing_direction.z)
 
 
+## Ends sprinting; the toggle has to be pressed again.
+func _stop_sprint() -> void:
+	sprint_toggled = false
+	is_sprinting = false
+
+
+## Out of breath: the sprint breaks.
+func _on_exhausted() -> void:
+	_stop_sprint()
+
+
+## Any hit that hurts breaks the sprint (dodged hits don't).
+func _on_damaged(_amount: int, _source: Node) -> void:
+	_stop_sprint()
+
+
 func _on_died() -> void:
 	is_dead = true
 	_attack_held = false
 	_buffered = AttackInput.NONE
 	_dodge_buffer_left = 0.0
 	_jump_buffer_left = 0.0
-	is_sprinting = false
+	_stop_sprint()
 	if dodge:
 		dodge.cancel()
 	# The body stays as an anchor but no longer blocks enemies.

@@ -6,6 +6,7 @@
 script = ExtResource("1_profile")
 display_name = "Club Swing"
 damage = 15
+stamina_cost = 15.0
 windup = 0.7
 strike_duration = 0.12
 recovery = 0.9

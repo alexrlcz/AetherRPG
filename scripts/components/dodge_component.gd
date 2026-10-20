@@ -18,6 +18,10 @@ enum Phase { READY, ROLL, RECOVERY }
 @export var animator: CharacterAnimator
 ## Made invulnerable during the i-frame window.
 @export var hurtbox: HurtboxComponent
+## Optional: each roll pays `stamina_cost` here; none starts while it can't
+## act (exhausted).
+@export var stamina: StaminaComponent
+@export var stamina_cost: float = 18.0
 @export var animation: StringName = &"Roll"
 ## Seconds into `animation` reached when recovery ends. 0 = full length.
 @export var animation_end: float = 0.0
@@ -60,9 +64,10 @@ func is_recovering() -> bool:
 	return phase == Phase.RECOVERY
 
 
-## True when a new dodge may start now (not dodging, cooldown over).
+## True when a new dodge may start now (not dodging, cooldown over, stamina
+## to act).
 func is_ready() -> bool:
-	return phase == Phase.READY and _since_start >= cooldown
+	return phase == Phase.READY and _since_start >= cooldown 		and (stamina == null or stamina.can_act())
 
 
 ## Starts a dodge along `dir` (horizontal). Returns false if not ready.
@@ -71,6 +76,8 @@ func start(dir: Vector3) -> bool:
 	if not is_ready() or dir.length_squared() < 0.0001:
 		return false
 	direction = dir.normalized()
+	if stamina:
+		stamina.spend(stamina_cost)
 	_since_start = 0.0
 	_enter(Phase.ROLL)
 	_update_invulnerability()

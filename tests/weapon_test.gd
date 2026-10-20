@@ -164,7 +164,7 @@ func test_sprint_attacks() -> void:
 		await ticks(3)
 		_weapon(player).equip(GREATSWORD)
 		Input.action_press("move_forward")
-		Input.action_press("sprint")
+		player.sprint_toggled = true
 		await ticks(60)
 		var dir := flat(player.velocity).normalized()
 		var target := spawn_dummy(player.global_position + dir * 4.5, 0.4)
@@ -174,7 +174,7 @@ func test_sprint_attacks() -> void:
 		var expected: AttackProfile = GREATSWORD.dash_heavy_attack if heavy else GREATSWORD.dash_attack
 		check(player.melee.current == expected, "%s started (%s)" % [expected.display_name,
 			player.melee.current.display_name if player.melee.current else "none"])
-		Input.action_release("sprint")
+		player.sprint_toggled = false
 		Input.action_release("move_forward")
 		await wait_until(func() -> bool: return target.current_health < hp, 200)
 		check(target.current_health < hp, "%s reaches a target 4.5 m ahead" % expected.display_name)
@@ -192,10 +192,10 @@ func test_greatsword_locomotion() -> void:
 	Input.action_press("move_forward")
 	await ticks(60)
 	check(animator.animation_player.current_animation == "GS/Run", "runs with GS/Run (%s)" % animator.animation_player.current_animation)
-	Input.action_press("sprint")
+	player.sprint_toggled = true
 	await ticks(40)
 	check(animator.animation_player.current_animation == "GS/Run", "sprints with GS/Run too (%s)" % animator.animation_player.current_animation)
-	Input.action_release("sprint")
+	player.sprint_toggled = false
 	Input.action_release("move_forward")
 	# Aim up the screen, move screen-left: 90 degrees off the facing.
 	player.aim_override = flat(-camera_rig.camera.global_basis.z).normalized()

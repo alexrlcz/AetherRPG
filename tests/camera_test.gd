@@ -158,7 +158,7 @@ func test_mouse_aim() -> void:
 
 
 func test_wall_cutout() -> void:
-	print("6. Walls are full height and cut out between the camera and the player")
+	print("6. Walls are full height and cut away on the camera side of the player")
 	var built := DungeonBuilder.new().build(Dungeon01Layout.create(), "Dungeon01")
 	root.add_child(built)
 	await process_frame
@@ -181,12 +181,17 @@ func test_wall_cutout() -> void:
 	check(rig.cutout_camera.is_equal_approx(rig.camera.global_position), "cutout starts at the camera")
 	check(is_equal_approx(rig.cutout_radius, rig.overview_cutout_radius),
 		"overview hole radius %.1f m" % rig.cutout_radius)
+	check(is_equal_approx(rig.cutout_front_width, rig.overview_front_width),
+		"overview: walls on the camera side cut %.0f m to either side" % rig.cutout_front_width)
 	rig.set_zoom(1.0, true)
 	await ticks(2)
 	check(is_equal_approx(rig.cutout_radius, rig.close_cutout_radius),
 		"close-up hole radius %.1f m" % rig.cutout_radius)
+	check(is_equal_approx(rig.cutout_front_width, rig.close_front_width),
+		"close-up: only what stands between camera and player (%.1f m)" % rig.cutout_front_width)
 	var names := RenderingServer.global_shader_parameter_get_list()
-	check(names.has(&"cutout_camera") and names.has(&"cutout_target") and names.has(&"cutout_radius"),
+	check(names.has(&"cutout_camera") and names.has(&"cutout_target") and names.has(&"cutout_radius")
+		and names.has(&"cutout_front_width") and names.has(&"cutout_stub_height"),
 		"shader globals registered (project.godot)")
 	await clear_arena()
 

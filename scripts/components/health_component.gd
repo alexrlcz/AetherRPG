@@ -16,6 +16,10 @@ signal died
 			current_health = max_health
 		health_changed.emit(current_health, max_health)
 
+## Debug god mode: take_damage() removes nothing (so hits don't stagger
+## either: hurtboxes only react to damage actually taken).
+@export var god_mode: bool = false
+
 ## Valid from construction (not only after _ready), so other nodes can read
 ## it regardless of scene-tree ready order.
 var current_health: int = max_health
@@ -26,7 +30,7 @@ var is_dead: bool:
 
 ## Applies damage and returns the amount actually removed.
 func take_damage(amount: int, source: Node = null) -> int:
-	if is_dead or amount <= 0:
+	if is_dead or amount <= 0 or god_mode:
 		return 0
 	var applied := mini(amount, current_health)
 	current_health -= applied

@@ -6,7 +6,9 @@ extends CharacterBody3D
 ##
 ## Attacks come from the equipped weapon (`weapon`, WeaponComponent): the
 ## basic swing within `attack_range`, and the optional dash attack, a gap
-## closer from mid range on `stats.dash_cooldown`.
+## closer from mid range on `stats.dash_cooldown`. Each attack pays its
+## stamina cost (`stamina`, sized by `stats`); an exhausted enemy in range
+## holds its ground facing the target until it recovers.
 ##
 ## Targets the first node in the "player" group. Movement uses a
 ## NavigationAgent3D on the baked navigation mesh. Numbers come from `stats`.
@@ -25,6 +27,8 @@ enum State { IDLE, CHASE, ATTACK, STAGGER, DEAD }
 @export var weapon: WeaponComponent
 ## Optional: hit reactions (hitstun, knockback, poise).
 @export var reaction: HitReactionComponent
+## Optional: pays for attacks (shared with `melee`); sized from `stats`.
+@export var stamina: StaminaComponent
 
 @export_group("Navigation")
 ## How often the chase path is recomputed.
@@ -72,6 +76,9 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 func _ready() -> void:
 	_apply_elite()
 	health.max_health = stats.max_health
+	if stamina:
+		stamina.max_stamina = stats.max_stamina
+		stamina.regen_rate = stats.stamina_regen
 	health.died.connect(_on_died)
 	health.damaged.connect(_on_damaged)
 	if weapon:
@@ -140,8 +147,9 @@ func _process_chase(delta: float) -> Vector3:
 			return Vector3.ZERO
 		return _navigate_to(_last_seen_position)
 	if _distance_to_target() <= attack_range:
-		_start_attack()
-		return Vector3.ZERO
+		if melee.can_afford():
+			_start_attack()
+		return Vector3.ZERO  # Out of breath: hold ground until it can swing.
 	if _can_dash():
 		_start_attack(dash_attack)
 		_dash_cooldown_left = stats.dash_cooldown
@@ -185,7 +193,7 @@ func _start_attack(profile: AttackProfile = null) -> void:
 
 
 func _can_dash() -> bool:
-	if dash_attack == null or _dash_cooldown_left > 0.0:
+	if dash_attack == null or _dash_cooldown_left > 0.0 or not melee.can_afford():
 		return false
 	var distance := _distance_to_target()
 	return distance >= dash_min_range and distance <= dash_max_range
@@ -230,7 +238,7 @@ func _apply_elite() -> void:
 		capsule.height *= size_scale
 		node.shape = capsule
 		node.position *= size_scale
-	for path in [^"HealthBar", ^"DamageNumbers"]:
+	for path in [^"HealthBar", ^"StaminaBar", ^"DamageNumbers"]:
 		var node := get_node_or_null(path) as Node3D
 		if node:
 			node.position *= size_scale

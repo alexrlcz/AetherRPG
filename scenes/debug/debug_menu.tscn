@@ -57,6 +57,10 @@ text = "Spawn enemy   [F2]"
 unique_name_in_owner = true
 text = "Heal player"
 
+[node name="GodModeCheck" type="CheckBox" parent="Panel/VBox"]
+unique_name_in_owner = true
+text = "God mode (player takes no damage)"
+
 [node name="KillButton" type="Button" parent="Panel/VBox"]
 unique_name_in_owner = true
 text = "Kill all enemies"

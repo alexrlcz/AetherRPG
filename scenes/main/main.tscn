@@ -31,8 +31,9 @@ script = ExtResource("41_fade")
 [node name="IsoCameraRig" parent="." unique_id=2066421102 instance=ExtResource("3_camera")]
 target_path = NodePath("../Player")
 
-[node name="HUD" parent="." unique_id=228478913 node_paths=PackedStringArray("player_health") instance=ExtResource("4_hud")]
+[node name="HUD" parent="." unique_id=228478913 node_paths=PackedStringArray("player_health", "player_stamina") instance=ExtResource("4_hud")]
 player_health = NodePath("../Player/HealthComponent")
+player_stamina = NodePath("../Player/Stamina")
 
 [node name="EnemySpawner" type="Node" parent="." unique_id=2018847089 node_paths=PackedStringArray("container", "avoid")]
 script = ExtResource("7_spawner")

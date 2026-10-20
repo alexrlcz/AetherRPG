@@ -1,7 +1,8 @@
 extends SceneTree
 ## Headless checks of the runtime dungeon builder (step 1 of level generation):
 ## the runtime build of dungeon_01 matches the saved scene, the navmesh bakes
-## on a thread and connects the level, and a layout made in code builds.
+## on a thread and connects the level, a layout made in code builds, and
+## curvature bends a level without breaking it.
 ##   godot --headless --path . -s res://tests/dungeon_builder_test.gd
 ## Exit code 0 = every check passed.
 
@@ -22,6 +23,7 @@ func _initialize() -> void:
 	await test_matches_saved_scene()
 	await test_runtime_bake()
 	await test_layout_with_hole()
+	await test_curvature()
 	print("FAILURES: %d" % failures)
 	quit(1 if failures > 0 else 0)
 
@@ -35,7 +37,11 @@ func test_matches_saved_scene() -> void:
 	await process_frame
 	var a := _shapes(saved)
 	var b := _shapes(built)
-	check(a.size() == b.size() and a.size() > 100, "%d collision shapes each (saved %d)" % [b.size(), a.size()])
+	check(a.size() == b.size() and a.size() > 40, "%d collision shapes each (saved %d)" % [b.size(), a.size()])
+	for body in ["Floor", "Walls"]:
+		var saved_faces := _trimesh(saved.get_node("NavigationRegion3D/" + body)).get_faces().size()
+		var built_faces := _trimesh(built.get_node("NavigationRegion3D/" + body)).get_faces().size()
+		check(saved_faces == built_faces and saved_faces > 0, "%s: %d trimesh corners each" % [body, built_faces])
 	var mismatched := 0
 	for i in mini(a.size(), b.size()):
 		if a[i] != b[i]:
@@ -90,6 +96,7 @@ func test_layout_with_hole() -> void:
 	layout.floor_rings.append(PackedVector2Array([Vector2(4, 4), Vector2(6, 4), Vector2(6, 6), Vector2(4, 6)]))
 	layout.labels = [["West", Vector2(1, 5)], ["East", Vector2(9, 5)]]
 	layout.props = [["crate", 2.0, 2.0, 0]]
+	layout.curvature = 0.0  # The plain grid: exact floor area.
 	layout.centre_origin()
 	check(layout.is_floor(Vector2(1, 1)) and not layout.is_floor(Vector2(5, 5)) and not layout.is_floor(Vector2(11, 5)),
 		"floor around the hole, none inside or outside")
@@ -101,10 +108,11 @@ func test_layout_with_hole() -> void:
 		await process_frame
 		frames += 1
 	check(holder.is_navigation_ready(), "baked")
-	var area := 0.0
-	for shape in _shapes(holder.level.get_node("NavigationRegion3D/Floor")):
-		area += shape[1].x * shape[1].z
-	check(is_equal_approx(area, 96.0 * 4.0), "floor covers 96 cells (%.0f m²)" % area)
+	# 96 cells, plus the strip (FLOOR_STEP wide) reaching under the 48 cells
+	# of wall.
+	var area := _floor_area(holder.level)
+	check(area >= 96.0 * 4.0 and area <= (96.0 + 48.0 * DungeonBuilder.FLOOR_STEP + 1.0) * 4.0,
+		"floor covers the 96 cells and reaches under the walls (%.0f m²)" % area)
 	# No extra wait: navigation_ready promises the map is already synced.
 	var map := holder.get_world_3d().navigation_map
 	var from := holder.get_marker("West").global_position + Vector3.UP * 0.5
@@ -117,6 +125,109 @@ func test_layout_with_hole() -> void:
 		"the path goes around the hole (%.1f m vs %.1f m straight)" % [length, from.distance_to(to)])
 	holder.queue_free()
 	await process_frame
+
+
+func test_curvature() -> void:
+	print("4. Curvature bends the level: rounded, warped, same seed same level, still walkable")
+	var straight := _ring_layout(0.0)
+	var curved := _ring_layout(1.0)
+	var moved := 0
+	for p in [Vector2(1, 1), Vector2(9, 9), Vector2(5, 1), Vector2(1, 7)]:
+		if straight.to_world(p, DungeonBuilder.CELL).distance_to(curved.to_world(p, DungeonBuilder.CELL)) > 0.05:
+			moved += 1
+	check(moved >= 3, "the warp moves grid points (%d of 4 moved)" % moved)
+	var a := _ring_layout(1.0).to_world(Vector2(3.3, 7.1), DungeonBuilder.CELL)
+	var b := _ring_layout(1.0).to_world(Vector2(3.3, 7.1), DungeonBuilder.CELL)
+	check(a.is_equal_approx(b), "the same seed bends the same way")
+	var other := _ring_layout(1.0)
+	other.seed = 999
+	check(not other.to_world(Vector2(3.3, 7.1), DungeonBuilder.CELL).is_equal_approx(a),
+		"another seed bends another way")
+	# The warp never folds: nearby points stay apart within the slope cap.
+	var worst := 1.0
+	for i in 200:
+		var p := Vector2(randf_range(0.0, 40.0), randf_range(0.0, 40.0))
+		var step := Vector2.from_angle(randf() * TAU) * 0.05
+		var stretch := (curved.warp(p + step) - curved.warp(p)).length() / 0.05
+		worst = minf(worst, stretch)
+	check(worst > 1.0 - DungeonLayout.WARP_MAX_SLOPE - 0.02, "no squeeze past the slope cap (min stretch %.2f)" % worst)
+	var holder := DungeonLevel.new()
+	root.add_child(holder)
+	holder.build(curved, "Curved")
+	var frames := 0
+	while not holder.is_navigation_ready() and frames < 600:
+		await process_frame
+		frames += 1
+	check(holder.is_navigation_ready(), "baked")
+	var walls := holder.level.get_node("NavigationRegion3D/Walls/Mesh") as MeshInstance3D
+	check(walls.get_aabb().size.y > DungeonBuilder.WALL_HEIGHT - 0.01, "walls %.1f m tall" % walls.get_aabb().size.y)
+	# Rounded and hewn: the square rings (4 headings each) become curves.
+	var headings := {}
+	for ring in DungeonBuilder.new().smoothed_outline(_ring_layout(1.0)):
+		for i in ring.size():
+			var d := ring[(i + 1) % ring.size()] - ring[i]
+			headings[roundi(rad_to_deg(d.angle()) / 5.0)] = true
+	check(headings.size() > 20, "the walls run in %d headings (a square room: 4)" % headings.size())
+	var square := DungeonBuilder.new().smoothed_outline(_ring_layout(0.0))
+	var corners := 0
+	for ring in square:
+		for p in ring:
+			if p in [Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)]:
+				corners += 1
+	check(corners == 4, "at curvature 0 the walls keep their square corners")
+	var crate := holder.level.get_node("NavigationRegion3D/Props/Crate1") as StaticBody3D
+	var space := holder.level.get_world_3d().direct_space_state
+	var query := PhysicsShapeQueryParameters3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.9, 0.8, 0.9)
+	query.shape = box
+	query.transform = Transform3D(crate.global_basis, crate.global_position + Vector3.UP * 0.5)
+	query.exclude = [crate.get_rid()]
+	var hits_wall := false
+	for hit in space.intersect_shape(query, 4):
+		if (hit["collider"] as Node).name == "Walls":
+			hits_wall = true
+	check(not hits_wall, "the corner crate was moved clear of the rounded wall")
+	var map := holder.get_world_3d().navigation_map
+	var from := holder.get_marker("West").global_position + Vector3.UP * 0.5
+	var to := holder.get_marker("East").global_position + Vector3.UP * 0.5
+	var path := NavigationServer3D.map_get_path(map, from, to, true)
+	check(path.size() > 2 and path[-1].distance_to(to) < 0.6, "West reaches East around the hole")
+	holder.queue_free()
+	await process_frame
+
+
+## A 10x10 room around a 2x2 hole, with a crate in a corner.
+func _ring_layout(curvature: float) -> DungeonLayout:
+	var layout := DungeonLayout.new()
+	layout.floor_rings.append(PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)]))
+	layout.floor_rings.append(PackedVector2Array([Vector2(4, 4), Vector2(6, 4), Vector2(6, 6), Vector2(4, 6)]))
+	layout.labels = [["West", Vector2(1, 5)], ["East", Vector2(9, 5)]]
+	layout.props = [["crate", 0.75, 0.75, 0]]
+	layout.seed = 31337
+	layout.curvature = curvature
+	layout.centre_origin()
+	return layout
+
+
+## The trimesh collider of a Floor / Walls body.
+func _trimesh(body: Node) -> ConcavePolygonShape3D:
+	for cs: CollisionShape3D in body.find_children("*", "CollisionShape3D", false, false):
+		if cs.shape is ConcavePolygonShape3D:
+			return cs.shape
+	return null
+
+
+## Area (m², horizontal) of the level's floor collider.
+func _floor_area(level: Node) -> float:
+	var faces := _trimesh(level.get_node("NavigationRegion3D/Floor")).get_faces()
+	var area := 0.0
+	for i in range(0, faces.size(), 3):
+		var a := Vector2(faces[i].x, faces[i].z)
+		var b := Vector2(faces[i + 1].x, faces[i + 1].z)
+		var c := Vector2(faces[i + 2].x, faces[i + 2].z)
+		area += absf((b - a).cross(c - a)) * 0.5
+	return area
 
 
 ## [global origin, size] of every box / cylinder collision shape under `node`,

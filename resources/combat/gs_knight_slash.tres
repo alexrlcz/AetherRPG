@@ -6,6 +6,7 @@
 script = ExtResource("1_profile")
 display_name = "Knight Cleave"
 damage = 18
+stamina_cost = 18.0
 windup = 0.8
 windup_hold = 0.12
 strike_duration = 0.2

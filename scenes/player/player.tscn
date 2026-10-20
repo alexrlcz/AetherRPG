@@ -20,6 +20,7 @@
 [ext_resource type="Script" path="res://scripts/components/dodge_component.gd" id="39_dodge"]
 [ext_resource type="Script" path="res://scripts/combat/weapon_component.gd" id="41_weapon"]
 [ext_resource type="Resource" path="res://resources/weapons/sword.tres" id="42_sword"]
+[ext_resource type="Script" path="res://scripts/components/stamina_component.gd" id="43_stamina"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -28,7 +29,7 @@ height = 1.8
 [sub_resource type="BoxShape3D" id="Shape_attack"]
 size = Vector3(0.25, 0.3, 0.9)
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee") groups=["player"]]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee", "stamina") groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_ctrl")
@@ -39,6 +40,7 @@ dodge = NodePath("Dodge")
 weapon = NodePath("Weapon")
 health = NodePath("HealthComponent")
 melee = NodePath("MeleeAttack")
+stamina = NodePath("Stamina")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -56,6 +58,9 @@ melee = NodePath("../../../../../../MeleeAttack")
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("2_health")
 max_health = 100
+
+[node name="Stamina" type="Node" parent="."]
+script = ExtResource("43_stamina")
 
 [node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
 collision_layer = 8
@@ -87,10 +92,11 @@ animation_player = NodePath("../Visual/Model/AnimationPlayer")
 death_animation = &""
 idle_variants = Array[StringName]([&"Idle", &"Idle_Talking", &"Idle_Torch", &"UAL2/Idle_FoldArms", &"UAL2/Idle_Lantern", &"UAL2/Idle_No", &"UAL2/Idle_Rail", &"UAL2/Idle_Rail_Call", &"UAL2/Idle_Shield", &"UAL2/Idle_TalkingPhone"])
 
-[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator")]
+[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "stamina")]
 script = ExtResource("8_melee")
 hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
 animator = NodePath("../Animator")
+stamina = NodePath("../Stamina")
 damage = 20
 windup = 0.42
 strike_duration = 0.13
@@ -127,10 +133,11 @@ melee = NodePath("../MeleeAttack")
 script = ExtResource("37_lock")
 body = NodePath("..")
 
-[node name="Dodge" type="Node" parent="." node_paths=PackedStringArray("animator", "hurtbox")]
+[node name="Dodge" type="Node" parent="." node_paths=PackedStringArray("animator", "hurtbox", "stamina")]
 script = ExtResource("39_dodge")
 animator = NodePath("../Animator")
 hurtbox = NodePath("../Hurtbox")
+stamina = NodePath("../Stamina")
 
 [node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)

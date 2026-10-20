@@ -107,6 +107,25 @@ func test_real_build() -> void:
 	check(off == 0, "all %d enemies reachable" % layout.spawns.size())
 	level.queue_free()
 	await process_frame
+	# Curvature bends every seed differently: the map's narrow doorways (in
+	# its interior walls) must stay open for all of them.
+	var cut_off := []
+	for s in [7919, 31676, 39595, 55433, 79190, 87109, 118789, 158380]:
+		var bent := LevelPool.map_layout(MAP, s, 1 + s % 6)
+		var holder := DungeonLevel.new()
+		root.add_child(holder)
+		holder.build(bent, "Map")
+		await holder.navigation_ready
+		var nav_map := holder.get_world_3d().navigation_map
+		var from := holder.get_marker("Start").global_position + Vector3.UP * 0.5
+		for spawn in bent.spawns:
+			var at := bent.to_world(spawn["cell"], DungeonBuilder.CELL) + Vector3.UP * 0.5
+			var route := NavigationServer3D.map_get_path(nav_map, from, at, true)
+			if route.is_empty() or route[-1].distance_to(at) > 0.6:
+				cut_off.append(s)
+		holder.queue_free()
+		await process_frame
+	check(cut_off.is_empty(), "8 more seeds: every enemy reachable (cut off in seeds %s)" % [cut_off])
 
 
 func test_pool() -> void:

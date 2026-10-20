@@ -11,6 +11,13 @@ extends Resource
 ## Multiplier on knockback taken (heavier enemies < 1).
 @export var knockback_scale: float = 1.0
 
+@export_group("Stamina")
+## Attacks pay their AttackProfile.stamina_cost from this pool; an exhausted
+## enemy holds its ground until it recovers (a window to punish).
+@export var max_stamina: float = 60.0
+## Per second, after the StaminaComponent's regen_delay.
+@export var stamina_regen: float = 8.0
+
 @export_group("Movement")
 @export var move_speed: float = 3.5
 @export var turn_speed: float = 10.0

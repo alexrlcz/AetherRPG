@@ -2,6 +2,7 @@ class_name DebugMenu
 extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
+## "God mode" makes the player take no damage (HealthComponent.god_mode).
 ## The panel also edits the player's appearance and weapon live (not saved)
 ## generates levels from a seed (Main.generate_level()) and plays the
 ## hand-made maps in LevelPool.MAPS_DIR (Main.play_map()).
@@ -30,6 +31,8 @@ func _ready() -> void:
 	_panel.hide()
 	%SpawnButton.pressed.connect(spawn_enemy)
 	%HealButton.pressed.connect(heal_player)
+	%GodModeCheck.set_pressed_no_signal(player_health.god_mode)
+	%GodModeCheck.toggled.connect(set_god_mode)
 	%KillButton.pressed.connect(kill_all_enemies)
 	_setup_appearance_controls()
 	_setup_weapon_control()
@@ -60,6 +63,12 @@ func spawn_enemy() -> Node3D:
 
 func heal_player() -> void:
 	player_health.heal(player_health.max_health)
+
+
+## Player takes no damage while `on`.
+func set_god_mode(on: bool) -> void:
+	player_health.god_mode = on
+	%GodModeCheck.set_pressed_no_signal(on)
 
 
 func kill_all_enemies() -> void:

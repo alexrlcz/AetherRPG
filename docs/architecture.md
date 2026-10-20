@@ -19,13 +19,25 @@
     `camera_rotate` (middle mouse) and dragging orbits the yaw (0.3° per
     physical pixel, `screen_relative`, so window stretch doesn't change it).
     Start yaw 45°.
-- Walls are full height on every side and use `shaders/wall_cutout.gdshader`:
-  each frame the rig sets the global shader parameters `cutout_camera`,
-  `cutout_target` (player + 1 m) and `cutout_radius` (2.2 m in the overview,
-  1.0 m close up; 0 = off), registered in project.godot `[shader_globals]`.
-  Wall pixels within the radius of the camera-to-player line, and in front of
-  the player, are discarded with a dither (so walls stay opaque-pass). Only
-  walls are cut: torches on a cut wall, door frames and props are not.
+- Walls are 4.2 m tall on every side (`DungeonBuilder.WALL_HEIGHT`) and use
+  `shaders/wall_cutout.gdshader`. Each frame the rig sets the global shader
+  parameters (project.godot `[shader_globals]`) `cutout_camera`,
+  `cutout_target` (player + 1 m), `cutout_radius`, `cutout_front_width` and
+  `cutout_stub_height`:
+  - Front cutaway: everything on the camera's side of the player (more than
+    0.4 m toward the camera, faded in over 0.5 m) within
+    `cutout_front_width` of the view line is cut down to
+    `cutout_stub_height` (0.5 m). Overview: 40 m (the whole screen: near
+    walls read as low dark rims, far walls stay full height); close-up:
+    1.6 m (only what stands between the camera and the character).
+  - Hole: within `cutout_radius` (2.2 m overview, 1.0 m close up) of the
+    camera-to-player line, cut entirely.
+  - Pixels are discarded with a dither (walls stay opaque-pass). Faces seen
+    from behind (inside a cut wall) draw as dark rock, so cut walls look
+    solid. The shader also darkens walls toward the top.
+  - Door frames (and the wall over each doorway), wall torches (bracket,
+    handle and an emissive flame) and pillars use the same shader with
+    other colours, so they are cut with the walls; their lights stay on.
 - The directional fill light's `directional_shadow_max_distance` is 150 m
   because the overview camera sits up to ~70 m from the player.
 - Gameplay code never depends on the camera except to convert input
@@ -45,11 +57,11 @@
 | `heavy_attack` | E                  | Cleave: slow, committed overhead blow that breaks enemy poise. |
 | `dodge`        | Left Shift         | Dodge roll toward the WASD direction (toward the cursor if none held), with i-frames (see Dodge roll). |
 | `jump`         | Space              | Jump (see Player movement feel). |
-| `sprint` (hold) | Left Alt          | Sprint at 8 m/s; faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
+| `sprint` (toggle) | Left Alt        | Toggle sprinting (8 m/s while moving); breaks when you stop, attack, take damage, run out of stamina or die (press again to resume). Faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
 | `walk_toggle`  | Left Ctrl          | Toggle walking (1.6 m/s, `Walk_Formal` cycle). |
 | `zoom_in/out`  | Mouse wheel        | Zoom; zooming in past the overview blends into a third-person view. |
 | `restart`      | R                  | After death (1 s delay): start a new run at level 1 (new seed). |
-| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **generate a level** (seed + Generate, or Random level), player appearance and **player weapon** (Sword / Greatsword). |
+| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **god mode**, **generate a level** (seed + Generate, or Random level), player appearance and **player weapon** (Sword / Greatsword). |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
 
 Attack presses are handled as input events (`_unhandled_input`), so clicks on
@@ -104,7 +116,8 @@ lethal, contact `point`, knockback `direction` (attacker -> victim) and
 reads it; nothing reacts to an attack merely starting.
 
 - `HealthComponent` (Node): `max_health`, `current_health`, `take_damage()`,
-  `heal()`, `reset()`. Valid from construction, independent of ready order.
+  `heal()`, `reset()`. `god_mode` (debug menu checkbox for the player): no
+  damage is taken, so hits don't stagger either. Valid from construction, independent of ready order.
 - `HurtboxComponent`: `receive_event(event)` applies damage, fills in
   `applied`/`lethal`, then emits `hurt(amount, source)` and
   `hit_received(event)` (only if damage was taken). `last_hit` is set before
@@ -243,7 +256,8 @@ overhead cut.
   the listed meshes and fades it out (`duration` 0.15 s); surface material
   overrides (enemy recolour) are untouched. Clears the overlay when freed
   mid-flash.
-- HUD shows "Defeated" + "Press R to try again"; `scripts/main/main.gd` (on
+- HUD shows the player's health and stamina bars (see Stamina), and
+  "Defeated" + "Press R to try again"; `scripts/main/main.gd` (on
   the Main node) reloads the scene on `restart` once the player has been dead
   for `restart_delay` seconds.
 
@@ -267,7 +281,7 @@ overhead cut.
   `max_spawn_height` (navmesh islands on rocks/pillars) or closer than
   `min_distance` to the player, and sets the enemy's transform *before*
   `add_child` (enemies record home/facing in `_ready`).
-- `DebugMenu` (`scenes/debug/debug_menu.tscn`): F1 panel with Spawn enemy,
+- `DebugMenu` (`scenes/debug/debug_menu.tscn`): F1 panel with Spawn enemy, God mode,
   Heal player, Kill all enemies and an alive-enemy count; F2 spawns directly.
   "Player appearance" section: body, skin texture, skin tint, hairstyle, hair
   colour, eyebrows, beard and Randomize. It edits a duplicate of the player's
@@ -560,9 +574,13 @@ overhead cut.
   180°, blended in between, full speed only straight ahead. The Mixamo
   directional cycles naturally move at 2.1–2.65 m/s; at full speed (6 m/s)
   they would skate even at the 1.6x cycle-rate cap. 1 = off.
-- Top speed (`_top_speed()`): `sprint_speed` 8 m/s while `sprint` is held
-  and moving (`is_sprinting`, cleared while attacking, staggered or
-  rolling), else `walk_speed` 1.6 m/s with the walk toggle on
+- Top speed (`_top_speed()`): `sprint_speed` 8 m/s while the sprint toggle
+  (`sprint_toggled`) is on and moving (`is_sprinting`, false while
+  attacking, staggered or rolling). The toggle breaks (`_stop_sprint()`)
+  when movement input ends while sprinting (it can be switched on while
+  standing, ready for the first step), when an attack starts (after picking
+  the dash attack), on any damage taken (`HealthComponent.damaged`; a dodged
+  hit doesn't count), on exhaustion and on death. Otherwise `walk_speed` 1.6 m/s with the walk toggle on
   (`is_walking`), else `move_speed` 6 m/s. Sprinting turns strafing off
   (`is_strafing` is false), so the character faces where it runs even while
   aiming or locked on; the lock itself stays.
@@ -598,6 +616,37 @@ overhead cut.
   Not armoured while rolling: outside the i-frames hits stagger as usual.
 - Debug-menu buttons don't take keyboard focus, so Space (`ui_accept`, now jump) never
   presses a focused button instead of jumping.
+
+## Stamina
+
+- `StaminaComponent` (`scripts/components/`, node `Stamina` on the player and
+  enemies): `max_stamina`, `current_stamina`, `regen_rate` per second after
+  `regen_delay` seconds without spending. `spend(amount)` pays for an action
+  (refused while `can_act()` is false); `drain(amount)` is the per-tick cost
+  of sprinting. Signals: `stamina_changed(current, maximum)`, `exhausted`,
+  `recovered`. `infinite` (debug) makes everything free.
+- Exhaustion: an action is allowed whenever stamina is above 0 and the owner
+  isn't exhausted, even if it costs more than what's left (the pool bottoms
+  out at 0). Reaching 0 sets `is_exhausted`: no attacks, dodges or sprint
+  until it regenerates to `recover_threshold` (25%) of the maximum.
+- Who pays: `MeleeAttackComponent.stamina` (each attack pays
+  `AttackProfile.stamina_cost` on start/chain; `can_afford()`),
+  `DodgeComponent.stamina` (`stamina_cost` per roll; `is_ready()` is false
+  while exhausted, so a roll never cancels an attack's recovery it can't
+  follow up), and the player's sprint (`sprint_stamina_per_second`, 15/s;
+  exhaustion turns `sprint_toggled` off). Jumping is free.
+- Costs (`stamina_cost` in `resources/combat/`): light swings 12 by default
+  (combo finisher 16), Cleave 28, Dash Strike 20; greatsword chain 14–22,
+  Whirlwind 30, Slide Strike 26, Leaping Slam 32; dodge 18. Knights: club
+  swing 15, knight dash 22, greatsword slash 18 / leap 26.
+- Player: 100 stamina, 30/s regen after 0.6 s (component defaults).
+- Enemies: `EnemyStats.max_stamina` (60) and `stamina_regen` (8/s, after
+  0.8 s). An exhausted enemy within `attack_range` holds its ground facing
+  the target instead of swinging, and won't dash, until it recovers — a
+  punish window. Elite multipliers don't scale stamina.
+- UI: the HUD's yellow `StaminaBar` under the health bar (dimmed while
+  exhausted); enemies get a thin yellow `WorldStaminaBar` under their health
+  bar, hidden at full stamina, faded while exhausted.
 
 ## Levels
 
@@ -644,6 +693,49 @@ overhead cut.
   and baked in 0.06-0.11 s (`tests/level_generator_test.gd`: 300-seed sweep,
   outline vs cells on 60 seeds, 15 real builds with a navmesh path from Start
   to the Exit and every room).
+- Curvature (step 7): levels are planned on the straight grid but built
+  bent. Nothing in cell space changes (rooms, props, spawns, walking,
+  RoomAnalysis); only where things land in the world and the shape of the
+  walls.
+  - `DungeonLayout.curvature` (0..1, default 1) and `curvature_seed()` (the
+    level seed, else the map path, else the outline). `to_world()` applies
+    `warp()`: per world axis three sine waves along random directions,
+    base wavelength 12-20 cells, amplitude 0.55-0.9 cells, capped so the
+    warp's slope stays under `WARP_MAX_SLOPE` 0.3 (it never folds; a
+    passage is squeezed to 70% at the very worst). `warp_rotation()` turns
+    props with the walls. Everything that goes cell -> world (builder, Main's
+    spawns, tests) already goes through `to_world()`.
+  - `DungeonBuilder` smooths the outline in cell space before warping it:
+    every corner becomes an arc (radius 0.7-1.7 cells x curvature, at most
+    0.45 of the shorter neighbouring edge), except within 1 cell of a door
+    or an interior wall's end; a corner whose arc cuts into the floor keeps
+    `MIN_PASSAGE` 0.8 cells to the wall across (measured along its
+    bisector), so a corridor bend is never pinched below the navmesh
+    agent's width; straight runs are cut into 0.5-cell pieces
+    (so the warp bends them); then the outline is pushed outward (never into
+    a room) by up to 0.32 cells in two waves along the wall (3.6 and 1.7
+    cells), fading out near doors and partition ends: hewn rock.
+    `smoothed_outline(layout)` returns it (tests).
+  - Floor: whole cells away from the walls, 0.2-cell squares near them,
+    reaching 0.15 cells under the wall; UV = the unbent grid position (m),
+    which `shaders/dungeon_floor.gdshader` uses for flagstones (1.25 x
+    0.85 m, shifted rows, tinted, grooved mortar), so the courses curve
+    with the rooms. Walls: inner face on the outline, outer face 0.6 m
+    out, a top; partitions centred on their line with end caps. Floor and
+    walls are each one mesh with one `ConcavePolygonShape3D` (both sides
+    solid), which the navmesh bakes from.
+  - Blocking props are pushed straight out of a rounded corner until their
+    footprint (`PROP_RADIUS`) clears the wall. Torches go every 5 cells of
+    outline on stretches that bend less than 25°, clear of doors.
+  - Door frames: posts and lintel at `DOOR_HEIGHT` 3 m between the warped
+    ends of the gap, and wall over the doorway up to the wall top.
+  - Atmosphere: ambient 0.4, fill light 0.32, stronger SSAO (radius 1.6,
+    intensity 2.5) and glow: the torches carry the light.
+  - Cost: dungeon_01 builds in ~0.14 s (was 0.013 s), generated levels in
+    ~0.2 s; the bake is unchanged (~0.02 s). `tests/dungeon_builder_test.gd`
+    test 4: warp moves points, is seeded, never squeezes past the cap; the
+    outline curves (vs 4 headings at curvature 0); a corner crate is moved
+    clear; the curved level bakes and is walkable.
 - Population (step 3), run by `LevelGenerator.generate(seed, level)` after
   the layout, each pass on its own RNG seeded from the level seed:
   - `PropScatter` (`scripts/world/prop_scatter.gd`), on any room shape (each
@@ -806,10 +898,11 @@ overhead cut.
   assets (wooden frames) and text labels (a `Marker3D` per label under
   `Markers`, e.g. `Start`, `BossRoom`). 1 grid cell (36 px) = `CELL` 2 m;
   map x -> +X, map y -> +Z, bounding-box centre = origin.
-- Floor = one box per run of grid cells; walls = boxes on the void side of
-  each edge (2.6 m), all full height (the camera orbits; the wall shader cuts
-  them away between the camera and the player). Torches go on every wall (one
-  per edge >= 4 cells, two from 8).
+- Floor and walls: meshes with trimesh colliders built along the smoothed,
+  warped outline (see Levels, Curvature); walls 4.2 m on the void side of
+  the outline, all full height (the camera orbits; the wall shader cuts
+  them away on the camera's side of the player). Torches every 5 cells of
+  outline.
 - Props are `[kind, cell x, cell y, yaw]` entries (dungeon_01: the table in
   `Dungeon01Layout`): pillars, crates, barrels, tables, chest, rubble, statue,
   braziers, campfire, throne (static bodies under the navigation region) and
@@ -873,14 +966,14 @@ scripts/world/encounter_planner.gd   EncounterPlanner: enemy budget and placemen
 scripts/world/enemy_roster.gd        EnemyRoster / enemy_entry.gd EnemyEntry: data for the planner
 resources/encounters/                Rosters and enemy entries
 scripts/ui/damage_numbers.gd         Floating combat numbers
-scripts/components/                  health, hitbox, hurtbox, melee attack, hit flash components
+scripts/components/                  health, stamina, hitbox, hurtbox, melee attack, dodge, hit flash components
 scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop, WeaponDefinition, WeaponComponent
 scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
 scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
 resources/combat/                    AttackProfiles: player sword (combo A/B/C, cleave, dash; slash and rising cut unused), greatsword (gs_*), knights (club swing, dash, gs_knight_*)
 resources/weapons/                   WeaponDefinitions: sword, club, greatsword
 tests/combat_test.gd                 Headless combat checks: godot --headless --path . -s res://tests/combat_test.gd
-tests/*_test.gd                      Also camera, dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population, run and map_pool suites (same command, other file)
+tests/*_test.gd                      Also camera, dodge, lock_on, enemy, movement, weapon, dungeon_builder, level_generator, population, run and map_pool suites (same command, other file), plus stamina_test.gd
 tests/lock_on_test.gd                Headless lock-on / attack-direction checks (same command, lock_on_test.gd)
 scripts/player/player_controller.gd
 scripts/player/lock_on_component.gd  Enemy lock-on (Q / Tab) and target marker
@@ -889,8 +982,10 @@ scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
 resources/enemies/                   EnemyStats and enemy CharacterAppearance .tres files
 resources/navigation/                Baked navmeshes
 shaders/billboard_bar.gdshader
-shaders/wall_cutout.gdshader         Stone walls, see-through between the camera and the player
+shaders/wall_cutout.gdshader         Walls, door frames, torches, pillars: cut away on the camera side of the player
+shaders/dungeon_floor.gdshader       Flagstone floor (UV = unbent grid position, so it curves with the level)
 scripts/ui/world_health_bar.gd
+scripts/ui/world_stamina_bar.gd      Enemy stamina bar (same billboard shader, yellow fill)
 scripts/camera/iso_camera_rig.gd
 scripts/ui/hud.gd
 ```

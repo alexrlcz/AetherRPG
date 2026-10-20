@@ -6,6 +6,7 @@
 script = ExtResource("1_profile")
 display_name = "Flurry II"
 damage = 18
+stamina_cost = 14.0
 windup = 0.25
 strike_duration = 0.14
 recovery = 0.35

@@ -6,6 +6,7 @@
 script = ExtResource("1_profile")
 display_name = "Downward Cleave"
 damage = 24
+stamina_cost = 20.0
 windup = 0.45
 strike_duration = 0.18
 recovery = 0.55

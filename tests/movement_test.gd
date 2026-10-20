@@ -11,6 +11,7 @@ const DASH := preload("res://resources/combat/player_dash_attack.tres")
 func _initialize() -> void:
 	await process_frame
 	await test_sprint()
+	await test_sprint_breaks()
 	await test_walk_toggle()
 	await test_jump()
 	await test_dash_attack()
@@ -25,30 +26,73 @@ func test_sprint() -> void:
 	var player := spawn_player(Vector3.ZERO)
 	await ticks(3)
 	Input.action_press("move_forward")
-	Input.action_press("sprint")
+	_press_sprint()
 	await ticks(90)
 	var speed := flat(player.velocity).length()
-	check(player.is_sprinting, "is_sprinting while held and moving")
+	check(player.sprint_toggled, "a sprint press toggles sprint on")
+	check(player.is_sprinting, "is_sprinting while toggled on and moving")
 	check(absf(speed - player.sprint_speed) < 0.2, "sprint speed %.2f m/s" % speed)
 	check(_anim(player) == &"Sprint", "Sprint cycle plays (%s)" % _anim(player))
-	Input.action_release("sprint")
+	_press_sprint()
 	await ticks(60)
+	check(not player.sprint_toggled, "a second sprint press toggles it off")
 	speed = flat(player.velocity).length()
 	check(absf(speed - player.move_speed) < 0.2, "back to run speed %.2f m/s" % speed)
 	check(_anim(player) == &"Jog_Fwd", "Jog cycle after releasing (%s)" % _anim(player))
 	# Sprinting overrides strafing: facing follows the movement, not the cursor.
 	player.aim_override = Vector3.LEFT
 	Input.action_press("aim")
-	Input.action_press("sprint")
+	player.sprint_toggled = true
 	await ticks(60)
 	var forward := flat(-player.global_basis.z).normalized()
 	var moving := flat(player.velocity).normalized()
 	check(not player.is_strafing, "not strafing while sprinting with aim held")
 	check(forward.dot(moving) > 0.95, "faces the sprint direction (dot %.2f)" % forward.dot(moving))
-	Input.action_release("sprint")
+	player.sprint_toggled = false
 	await ticks(30)
 	check(player.is_strafing, "strafing again after releasing sprint")
 	Input.action_release("aim")
+	Input.action_release("move_forward")
+	await clear_arena()
+
+
+func test_sprint_breaks() -> void:
+	print("1b. The sprint toggle breaks on stopping, attacking and taking damage")
+	await make_arena()
+	var player := spawn_player(Vector3.ZERO)
+	player.health.max_health = 1000
+	await ticks(3)
+	# Switched on while standing: it waits for the first step.
+	_press_sprint()
+	await ticks(10)
+	check(player.sprint_toggled, "switched on while standing, it stays on")
+	Input.action_press("move_forward")
+	await ticks(60)
+	check(player.is_sprinting, "the first step sprints")
+	Input.action_release("move_forward")
+	await ticks(2)
+	check(not player.sprint_toggled, "stopping breaks it")
+	Input.action_press("move_forward")
+	await ticks(60)
+	check(not player.is_sprinting and flat(player.velocity).length() < player.move_speed + 0.2,
+		"moving again runs, not sprints (%.2f m/s)" % flat(player.velocity).length())
+	# Attacking: the sprint picks the dash strike, then breaks.
+	player.sprint_toggled = true
+	await ticks(60)
+	player.request_attack(false)
+	await wait_until(func() -> bool: return player.melee.is_busy(), 30)
+	check(player.melee.current == DASH, "a sprinting attack is still the dash strike")
+	check(not player.sprint_toggled, "attacking breaks it")
+	await wait_until(func() -> bool: return not player.melee.is_busy(), 200)
+	await ticks(30)
+	check(not player.is_sprinting, "after the attack, holding forward runs (%.2f m/s)" % flat(player.velocity).length())
+	# Taking damage.
+	player.sprint_toggled = true
+	await ticks(30)
+	check(player.is_sprinting, "sprinting again")
+	player.health.take_damage(5)
+	await ticks(1)
+	check(not player.sprint_toggled and not player.is_sprinting, "taking damage breaks it")
 	Input.action_release("move_forward")
 	await clear_arena()
 
@@ -127,7 +171,7 @@ func test_dash_attack() -> void:
 		% player.melee.current.display_name)
 	await wait_until(func() -> bool: return not player.melee.is_busy(), 120)
 	await ticks(10)
-	Input.action_press("sprint")
+	player.sprint_toggled = true
 	await ticks(60)
 	var dir := flat(player.velocity).normalized()
 	var dummy := spawn_dummy(player.global_position + dir * 4.0, 0.4)
@@ -137,7 +181,7 @@ func test_dash_attack() -> void:
 	check(player.melee.current == DASH, "sprinting light attack is the dash (%s)"
 		% player.melee.current.display_name)
 	check(_animator(player).current_action() == &"UAL2/Sword_Dash", "Sword_Dash plays")
-	Input.action_release("sprint")
+	player.sprint_toggled = false
 	Input.action_release("move_forward")
 	await wait_until(func() -> bool: return dummy.current_health < hp, 60)
 	check(dummy.current_health < hp, "the lunge reaches a target 4 m ahead")
@@ -193,3 +237,13 @@ func _anim(player: PlayerController) -> StringName:
 
 func _animator(player: PlayerController) -> CharacterAnimator:
 	return player.get_node("Animator") as CharacterAnimator
+
+
+## Sends a real "sprint" press/release through the input pipeline.
+func _press_sprint() -> void:
+	for pressed in [true, false]:
+		var event := InputEventAction.new()
+		event.action = &"sprint"
+		event.pressed = pressed
+		Input.parse_input_event(event)
+	Input.flush_buffered_events()

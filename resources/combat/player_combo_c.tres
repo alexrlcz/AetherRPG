@@ -6,6 +6,7 @@
 script = ExtResource("1_profile")
 display_name = "Finisher"
 damage = 30
+stamina_cost = 16.0
 windup = 0.5
 strike_duration = 0.14
 recovery = 1.0

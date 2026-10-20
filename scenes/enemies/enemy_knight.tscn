@@ -22,6 +22,8 @@
 [ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
 [ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="26_reaction"]
 [ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="27_feedback"]
+[ext_resource type="Script" path="res://scripts/components/stamina_component.gd" id="32_stamina"]
+[ext_resource type="Script" path="res://scripts/ui/world_stamina_bar.gd" id="33_stamina_bar"]
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.4
@@ -38,7 +40,16 @@ shader = ExtResource("8_bar_shader")
 material = SubResource("Mat_bar")
 size = Vector2(1.0, 0.13)
 
-[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "weapon", "reaction") groups=["enemies"]]
+[sub_resource type="ShaderMaterial" id="Mat_stamina_bar"]
+render_priority = 1
+shader = ExtResource("8_bar_shader")
+shader_parameter/fill_color = Color(0.95, 0.78, 0.2, 1)
+
+[sub_resource type="QuadMesh" id="Mesh_stamina_bar"]
+material = SubResource("Mat_stamina_bar")
+size = Vector2(1.0, 0.07)
+
+[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "weapon", "reaction", "stamina") groups=["enemies"]]
 collision_layer = 4
 collision_mask = 3
 script = ExtResource("1_ctrl")
@@ -49,6 +60,7 @@ hurtbox = NodePath("Hurtbox")
 melee = NodePath("MeleeAttack")
 weapon = NodePath("Weapon")
 reaction = NodePath("HitReaction")
+stamina = NodePath("Stamina")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -68,6 +80,10 @@ radius = 0.4
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("3_health")
+
+[node name="Stamina" type="Node" parent="."]
+script = ExtResource("32_stamina")
+regen_delay = 0.8
 
 [node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
 collision_layer = 16
@@ -98,6 +114,14 @@ mesh = SubResource("Mesh_bar")
 script = ExtResource("7_bar")
 health = NodePath("../HealthComponent")
 
+[node name="StaminaBar" type="MeshInstance3D" parent="." node_paths=PackedStringArray("stamina", "health")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.05, 0)
+cast_shadow = 0
+mesh = SubResource("Mesh_stamina_bar")
+script = ExtResource("33_stamina_bar")
+stamina = NodePath("../Stamina")
+health = NodePath("../HealthComponent")
+
 [node name="Animator" type="Node" parent="." node_paths=PackedStringArray("body", "health", "animation_player")]
 script = ExtResource("6_anim")
 body = NodePath("..")
@@ -105,10 +129,11 @@ health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 death_animation = &""
 
-[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator")]
+[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "stamina")]
 script = ExtResource("11_melee")
 hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
 animator = NodePath("../Animator")
+stamina = NodePath("../Stamina")
 animation = &"Sword_Attack"
 animation_strike_time = 0.37
 animation_strike_end = 0.5

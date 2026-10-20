@@ -6,6 +6,13 @@ extends RefCounted
 ##
 ## Coordinates are in cells: x -> world +X, y -> world +Z. The bounding-box
 ## centre of the floor is the world origin (`origin`).
+##
+## Curvature: everything stays on the straight grid in cell space (rooms,
+## props, spawns, walking), but to_world() bends it with a smooth seeded
+## warp (`curvature` scales it; 0 = the plain grid), and DungeonBuilder
+## rounds the outline's corners, so walls, corridors and rooms come out
+## curved. The warp never folds (its slope is capped), so whatever is apart
+## on the grid stays apart in the world.
 
 ## Pixels per grid cell in Dungeon Scrawl maps.
 const GRID_PX := 36.0
@@ -54,6 +61,24 @@ var spawns: Array[Dictionary] = []
 ## The boss fight of a boss floor (EncounterPlanner.place_boss()); null on
 ## other levels. Its arena is the room with role "boss".
 var boss: BossEncounter
+## 0..1: how strongly the level bends (warp and corner rounding). The shape
+## of the bend comes from curvature_seed().
+var curvature: float = 1.0
+
+## Warp: per world axis, WARP_WAVES sine waves along random directions.
+## Amplitude and base wavelength (cells) are picked per seed in these ranges;
+## the amplitude is then capped so the warp's slope stays under
+## WARP_MAX_SLOPE (narrowest squeeze of a passage: 1 - slope).
+const WARP_AMPLITUDE := Vector2(0.55, 0.9)
+const WARP_WAVELENGTH := Vector2(12.0, 20.0)
+const WARP_MAX_SLOPE := 0.3
+const _WARP_WEIGHTS := [0.55, 0.3, 0.15]
+const _WARP_LENGTH_SCALES := [1.0, 0.62, 1.7]
+
+## [[dir: Vector2, wave number: float, phase: float, weight * amplitude], ...]
+## per axis, built for `_warp_key`.
+var _warp_waves: Array = []
+var _warp_key: Array = []
 
 
 const _STEPS := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
@@ -202,10 +227,66 @@ func is_floor(cell_point: Vector2) -> bool:
 	return inside
 
 
-## World position of a cell point, `y` metres up.
+## World position of a cell point, `y` metres up (bent by the warp).
 func to_world(cell_point: Vector2, cell_size: float, y: float = 0.0) -> Vector3:
-	var p := (cell_point - origin) * cell_size
+	var p := (warp(cell_point) - origin) * cell_size
 	return Vector3(p.x, y, p.y)
+
+
+## Where the warp moves a cell point (cells). The identity at curvature 0.
+func warp(cell_point: Vector2) -> Vector2:
+	if curvature <= 0.0:
+		return cell_point
+	_ensure_warp()
+	var offset := Vector2.ZERO
+	for axis in 2:
+		for wave: Array in _warp_waves[axis]:
+			var dir: Vector2 = wave[0]
+			offset[axis] += wave[3] * sin(dir.dot(cell_point) * wave[1] + wave[2])
+	return cell_point + offset
+
+
+## How far (radians, world yaw) the warp turns things at a cell point:
+## props keep their angle to the walls.
+func warp_rotation(cell_point: Vector2) -> float:
+	var along := warp(cell_point + Vector2(0.25, 0.0)) - warp(cell_point - Vector2(0.25, 0.0))
+	return -along.angle()
+
+
+## Seed for the shape of the bend (and the builder's corner radii): the level
+## seed, else the source map's path, else the outline.
+func curvature_seed() -> int:
+	if seed != 0:
+		return hash([seed, "curvature"])
+	if source != "":
+		return hash([source, "curvature"])
+	return hash([floor_rings, "curvature"])
+
+
+func _ensure_warp() -> void:
+	var key := [curvature_seed(), curvature]
+	if key == _warp_key:
+		return
+	_warp_key = key
+	var rng := RandomNumberGenerator.new()
+	rng.seed = key[0]
+	var base_length := rng.randf_range(WARP_WAVELENGTH.x, WARP_WAVELENGTH.y)
+	var amplitude := rng.randf_range(WARP_AMPLITUDE.x, WARP_AMPLITUDE.y) * curvature
+	# Slope of one axis' displacement <= amplitude * sum(weight * TAU / length).
+	var slope_per_amplitude := 0.0
+	for i in _WARP_WEIGHTS.size():
+		slope_per_amplitude += _WARP_WEIGHTS[i] * TAU / (base_length * _WARP_LENGTH_SCALES[i])
+	# The warp's Jacobian is I + D with D's two rows each at most that long,
+	# so |D| <= sqrt(2) * that: under 1 nothing folds.
+	amplitude = minf(amplitude, WARP_MAX_SLOPE / sqrt(2.0) / slope_per_amplitude)
+	_warp_waves = []
+	for axis in 2:
+		var waves := []
+		for i in _WARP_WEIGHTS.size():
+			waves.append([Vector2.from_angle(rng.randf() * TAU),
+				TAU / (base_length * _WARP_LENGTH_SCALES[i]), rng.randf() * TAU,
+				_WARP_WEIGHTS[i] * amplitude])
+		_warp_waves.append(waves)
 
 
 ## Bounding box of all floor rings, in cells.

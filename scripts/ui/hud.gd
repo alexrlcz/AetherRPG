@@ -3,9 +3,11 @@ extends CanvasLayer
 ## Player-facing interface. Only listens to gameplay signals; never drives gameplay.
 
 @export var player_health: HealthComponent
+@export var player_stamina: StaminaComponent
 
 @onready var _health_bar: ProgressBar = %HealthBar
 @onready var _health_label: Label = %HealthLabel
+@onready var _stamina_bar: ProgressBar = %StaminaBar
 @onready var _defeated_label: Label = %DefeatedLabel
 @onready var _restart_hint: Label = %RestartHint
 @onready var _level_label: Label = %LevelLabel
@@ -23,6 +25,8 @@ func _ready() -> void:
 	_boss_panel.hide()
 	if player_health:
 		bind_player_health(player_health)
+	if player_stamina:
+		bind_player_stamina(player_stamina)
 	GameRun.current().level_changed.connect(_on_level_changed)
 	_on_level_changed(GameRun.current().level)
 
@@ -32,6 +36,25 @@ func bind_player_health(health: HealthComponent) -> void:
 	health.health_changed.connect(_on_player_health_changed)
 	health.died.connect(_on_player_died)
 	_on_player_health_changed(health.current_health, health.max_health)
+
+
+func bind_player_stamina(stamina: StaminaComponent) -> void:
+	player_stamina = stamina
+	stamina.stamina_changed.connect(_on_player_stamina_changed)
+	stamina.exhausted.connect(_refresh_stamina_tint)
+	stamina.recovered.connect(_refresh_stamina_tint)
+	_on_player_stamina_changed(stamina.current_stamina, stamina.max_stamina)
+	_refresh_stamina_tint()
+
+
+func _on_player_stamina_changed(current: float, maximum: float) -> void:
+	_stamina_bar.max_value = maximum
+	_stamina_bar.value = current
+
+
+## Dimmed while exhausted: no attacks, dodges or sprint until it brightens.
+func _refresh_stamina_tint() -> void:
+	_stamina_bar.modulate = Color(0.55, 0.5, 0.45) if player_stamina.is_exhausted else Color.WHITE
 
 
 func _on_player_health_changed(current: int, maximum: int) -> void:

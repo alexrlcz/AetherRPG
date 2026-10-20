@@ -7,6 +7,7 @@ script = ExtResource("1_profile")
 display_name = "Cleave"
 weight = 1
 damage = 40
+stamina_cost = 28.0
 windup = 0.62
 windup_hold = 0.14
 strike_duration = 0.1

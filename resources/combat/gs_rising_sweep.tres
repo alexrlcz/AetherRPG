@@ -6,6 +6,7 @@
 script = ExtResource("1_profile")
 display_name = "Rising Sweep"
 damage = 26
+stamina_cost = 18.0
 windup = 0.55
 strike_duration = 0.18
 recovery = 0.6

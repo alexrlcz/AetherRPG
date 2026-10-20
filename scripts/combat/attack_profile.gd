@@ -21,6 +21,8 @@ enum Weight { LIGHT, HEAVY }
 @export var display_name: String = "Attack"
 @export var weight: Weight = Weight.LIGHT
 @export var damage: int = 10
+## Paid from the attacker's StaminaComponent when the attack starts.
+@export var stamina_cost: float = 12.0
 
 @export_group("Timing")
 @export var windup: float = 0.3

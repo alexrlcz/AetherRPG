@@ -18,9 +18,11 @@ extends Node3D
 ## (middle mouse) held orbits the yaw.
 ##
 ## Every frame the rig also sets the global shader parameters `cutout_camera`,
-## `cutout_target` and `cutout_radius` (project.godot [shader_globals]); the
-## wall shader (shaders/wall_cutout.gdshader) cuts a see-through hole wherever
-## a wall stands between the camera and the target.
+## `cutout_target`, `cutout_radius`, `cutout_front_width` and
+## `cutout_stub_height` (project.godot [shader_globals]); the wall shader
+## (shaders/wall_cutout.gdshader) cuts walls on the camera's side of the
+## target down to low stubs, and a see-through hole wherever a wall stands
+## between the camera and the target.
 
 @export var target_path: NodePath
 @export var yaw_degrees: float = 45.0
@@ -64,6 +66,13 @@ extends Node3D
 @export var close_cutout_radius: float = 1.0
 ## Height (m) above the target's origin that the hole is aimed at.
 @export var cutout_target_height: float = 1.0
+## Half-width (m) of the front cutaway: walls on the camera's side of the
+## target and within this distance of the view line are cut down to
+## `cutout_stub_height`. Wide in the overview (the whole screen), narrow in
+## the close-up (just what stands between the camera and the character).
+@export var overview_front_width: float = 40.0
+@export var close_front_width: float = 1.6
+@export var cutout_stub_height: float = 0.5
 
 @export_group("Impact Shake")
 ## Largest camera offset (world units) at full strength.
@@ -85,6 +94,7 @@ var last_impulse_strength: float = 0.0
 var cutout_camera: Vector3
 var cutout_target: Vector3
 var cutout_radius: float = 0.0
+var cutout_front_width: float = 0.0
 
 var _target: Node3D
 ## Rig position without the look height (follows the target smoothly).
@@ -229,14 +239,19 @@ func _update_shake(delta: float) -> void:
 
 func _update_cutout() -> void:
 	cutout_radius = 0.0
+	cutout_front_width = 0.0
 	cutout_target = Vector3.ZERO
 	cutout_camera = camera.global_position
 	if _target and camera.is_current():
-		cutout_radius = lerpf(overview_cutout_radius, close_cutout_radius, get_close_blend())
+		var blend := get_close_blend()
+		cutout_radius = lerpf(overview_cutout_radius, close_cutout_radius, blend)
+		cutout_front_width = lerpf(overview_front_width, close_front_width, blend)
 		cutout_target = _target.global_position + Vector3.UP * cutout_target_height
 	RenderingServer.global_shader_parameter_set(&"cutout_camera", cutout_camera)
 	RenderingServer.global_shader_parameter_set(&"cutout_target", cutout_target)
 	RenderingServer.global_shader_parameter_set(&"cutout_radius", cutout_radius)
+	RenderingServer.global_shader_parameter_set(&"cutout_front_width", cutout_front_width)
+	RenderingServer.global_shader_parameter_set(&"cutout_stub_height", cutout_stub_height)
 
 
 func _unhandled_input(event: InputEvent) -> void:

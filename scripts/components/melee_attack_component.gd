@@ -29,6 +29,9 @@ const HOLD_CREEP := 0.03
 @export var animator: CharacterAnimator
 ## Optional ground marker shown during wind-up; its Z scale grows from 0 to 1.
 @export var telegraph: Node3D
+## Optional: each attack pays its AttackProfile.stamina_cost here, and none
+## starts while it can't act (exhausted).
+@export var stamina: StaminaComponent
 
 @export_group("Timing")
 @export var damage: int = 10
@@ -76,10 +79,15 @@ func is_busy() -> bool:
 ## Starts an attack (`profile`, or the exported fields). Returns false if one
 ## is already in progress.
 func start(profile: AttackProfile = null) -> bool:
-	if is_busy():
+	if is_busy() or not can_afford():
 		return false
 	_begin(profile if profile else _profile_from_exports(), false)
 	return true
+
+
+## True when the stamina pool (if any) allows starting an attack now.
+func can_afford() -> bool:
+	return stamina == null or stamina.can_act()
 
 
 ## True when the current attack's recovery may be cut into a follow-up.
@@ -91,7 +99,7 @@ func can_chain() -> bool:
 ## Starts `profile` out of the current recovery (combo). The animation carries
 ## on from its current pose when both attacks use the same clip.
 func chain(profile: AttackProfile) -> bool:
-	if profile == null or not can_chain():
+	if profile == null or not can_chain() or not can_afford():
 		return false
 	_begin(profile, true)
 	return true
@@ -151,6 +159,8 @@ func _root_motion_speed() -> float:
 
 
 func _begin(profile: AttackProfile, chained: bool) -> void:
+	if stamina:
+		stamina.spend(profile.stamina_cost)
 	current = profile
 	has_hit = false
 	hitbox.active = false

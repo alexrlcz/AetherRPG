@@ -159,3 +159,11 @@ cutout_radius={
 "type": "float",
 "value": 0.0
 }
+cutout_front_width={
+"type": "float",
+"value": 0.0
+}
+cutout_stub_height={
+"type": "float",
+"value": 0.5
+}

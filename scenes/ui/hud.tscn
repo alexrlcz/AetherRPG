@@ -21,6 +21,13 @@ corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
+[sub_resource type="StyleBoxFlat" id="Style_stamina_fill"]
+bg_color = Color(0.92, 0.74, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
 [sub_resource type="StyleBoxFlat" id="Style_boss_fill"]
 bg_color = Color(0.85, 0.42, 0.12, 1)
 corner_radius_top_left = 3
@@ -77,7 +84,7 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 24.0
-offset_top = -84.0
+offset_top = -100.0
 offset_right = 324.0
 offset_bottom = -24.0
 grow_vertical = 0
@@ -95,6 +102,14 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(300, 24)
 theme_override_styles/background = SubResource("Style_bar_bg")
 theme_override_styles/fill = SubResource("Style_bar_fill")
+value = 100.0
+show_percentage = false
+
+[node name="StaminaBar" type="ProgressBar" parent="PlayerPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 12)
+theme_override_styles/background = SubResource("Style_bar_bg")
+theme_override_styles/fill = SubResource("Style_stamina_fill")
 value = 100.0
 show_percentage = false
 
