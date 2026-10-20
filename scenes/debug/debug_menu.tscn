@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="2_definition"]
 [ext_resource type="Resource" path="res://resources/weapons/sword.tres" id="3_sword"]
 [ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="4_greatsword"]
+[ext_resource type="PackedScene" path="res://scenes/debug/outfit_menu.tscn" id="5_outfits"]
 
 [sub_resource type="StyleBoxFlat" id="Style_panel"]
 bg_color = Color(0.08, 0.08, 0.1, 0.85)
@@ -38,146 +39,156 @@ offset_bottom = 176.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("Style_panel")
 
-[node name="VBox" type="VBoxContainer" parent="Panel"]
+[node name="Scroll" type="ScrollContainer" parent="Panel"]
+horizontal_scroll_mode = 0
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Scroll"]
+size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="Title" type="Label" parent="Panel/VBox"]
+[node name="Title" type="Label" parent="Panel/Scroll/VBox"]
 theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
 text = "Debug  (F1 to close)"
 
-[node name="EnemyCount" type="Label" parent="Panel/VBox"]
+[node name="EnemyCount" type="Label" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Enemies alive: 0"
 
-[node name="SpawnButton" type="Button" parent="Panel/VBox"]
+[node name="SpawnButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Spawn enemy   [F2]"
 
-[node name="HealButton" type="Button" parent="Panel/VBox"]
+[node name="HealButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Heal player"
 
-[node name="GodModeCheck" type="CheckBox" parent="Panel/VBox"]
+[node name="GodModeCheck" type="CheckBox" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "God mode (player takes no damage)"
 
-[node name="KillButton" type="Button" parent="Panel/VBox"]
+[node name="KillButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Kill all enemies"
 
-[node name="LevelRow" type="HBoxContainer" parent="Panel/VBox"]
+[node name="OutfitsButton" type="Button" parent="Panel/Scroll/VBox"]
+unique_name_in_owner = true
+text = "Outfits..."
+
+[node name="LevelRow" type="HBoxContainer" parent="Panel/Scroll/VBox"]
 theme_override_constants/separation = 6
 
-[node name="SeedLabel" type="Label" parent="Panel/VBox/LevelRow"]
+[node name="SeedLabel" type="Label" parent="Panel/Scroll/VBox/LevelRow"]
 text = "Seed"
 
-[node name="SeedSpin" type="SpinBox" parent="Panel/VBox/LevelRow"]
+[node name="SeedSpin" type="SpinBox" parent="Panel/Scroll/VBox/LevelRow"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 max_value = 999999.0
 rounded = true
 
-[node name="LevelLabel" type="Label" parent="Panel/VBox/LevelRow"]
+[node name="LevelLabel" type="Label" parent="Panel/Scroll/VBox/LevelRow"]
 text = "Lv"
 
-[node name="LevelSpin" type="SpinBox" parent="Panel/VBox/LevelRow"]
+[node name="LevelSpin" type="SpinBox" parent="Panel/Scroll/VBox/LevelRow"]
 unique_name_in_owner = true
 min_value = 1.0
 max_value = 99.0
 value = 1.0
 rounded = true
 
-[node name="GenerateButton" type="Button" parent="Panel/VBox/LevelRow"]
+[node name="GenerateButton" type="Button" parent="Panel/Scroll/VBox/LevelRow"]
 unique_name_in_owner = true
 text = "Generate"
 
-[node name="RandomLevelButton" type="Button" parent="Panel/VBox"]
+[node name="RandomLevelButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Random level"
 
-[node name="MapRow" type="HBoxContainer" parent="Panel/VBox"]
+[node name="MapRow" type="HBoxContainer" parent="Panel/Scroll/VBox"]
 theme_override_constants/separation = 6
 
-[node name="MapOption" type="OptionButton" parent="Panel/VBox/MapRow"]
+[node name="MapOption" type="OptionButton" parent="Panel/Scroll/VBox/MapRow"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 
-[node name="PlayMapButton" type="Button" parent="Panel/VBox/MapRow"]
+[node name="PlayMapButton" type="Button" parent="Panel/Scroll/VBox/MapRow"]
 unique_name_in_owner = true
 text = "Play map"
 
-[node name="WeaponRow" type="HBoxContainer" parent="Panel/VBox"]
+[node name="WeaponRow" type="HBoxContainer" parent="Panel/Scroll/VBox"]
 theme_override_constants/separation = 8
 
-[node name="WeaponLabel" type="Label" parent="Panel/VBox/WeaponRow"]
+[node name="WeaponLabel" type="Label" parent="Panel/Scroll/VBox/WeaponRow"]
 text = "Player weapon"
 
-[node name="WeaponOption" type="OptionButton" parent="Panel/VBox/WeaponRow"]
+[node name="WeaponOption" type="OptionButton" parent="Panel/Scroll/VBox/WeaponRow"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 
-[node name="Separator" type="HSeparator" parent="Panel/VBox"]
+[node name="Separator" type="HSeparator" parent="Panel/Scroll/VBox"]
 
-[node name="AppearanceTitle" type="Label" parent="Panel/VBox"]
+[node name="AppearanceTitle" type="Label" parent="Panel/Scroll/VBox"]
 theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
 text = "Player appearance"
 
-[node name="Appearance" type="GridContainer" parent="Panel/VBox"]
+[node name="Appearance" type="GridContainer" parent="Panel/Scroll/VBox"]
 theme_override_constants/h_separation = 8
 columns = 2
 
-[node name="BodyLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="BodyLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Body"
 
-[node name="BodyOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+[node name="BodyOption" type="OptionButton" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 
-[node name="SkinLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="SkinLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Skin"
 
-[node name="SkinOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+[node name="SkinOption" type="OptionButton" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 
-[node name="SkinTintLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="SkinTintLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Skin tint"
 
-[node name="SkinTint" type="ColorPickerButton" parent="Panel/VBox/Appearance"]
+[node name="SkinTint" type="ColorPickerButton" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 26)
 size_flags_horizontal = 3
 edit_alpha = false
 
-[node name="HairLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="HairLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Hair"
 
-[node name="HairOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+[node name="HairOption" type="OptionButton" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 
-[node name="HairColorLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="HairColorLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Hair colour"
 
-[node name="HairColor" type="ColorPickerButton" parent="Panel/VBox/Appearance"]
+[node name="HairColor" type="ColorPickerButton" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 26)
 size_flags_horizontal = 3
 edit_alpha = false
 
-[node name="BrowLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="BrowLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Eyebrows"
 
-[node name="BrowOption" type="OptionButton" parent="Panel/VBox/Appearance"]
+[node name="BrowOption" type="OptionButton" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 
-[node name="BeardLabel" type="Label" parent="Panel/VBox/Appearance"]
+[node name="BeardLabel" type="Label" parent="Panel/Scroll/VBox/Appearance"]
 text = "Beard"
 
-[node name="BeardCheck" type="CheckBox" parent="Panel/VBox/Appearance"]
+[node name="BeardCheck" type="CheckBox" parent="Panel/Scroll/VBox/Appearance"]
 unique_name_in_owner = true
 
-[node name="RandomizeButton" type="Button" parent="Panel/VBox"]
+[node name="RandomizeButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Randomize appearance"
+
+[node name="OutfitMenu" parent="." instance=ExtResource("5_outfits")]

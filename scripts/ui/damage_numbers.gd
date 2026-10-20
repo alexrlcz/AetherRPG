@@ -1,11 +1,13 @@
 class_name DamageNumbers
 extends Node3D
-## Pops a floating number above its parent whenever `health` takes damage.
+## Pops a floating number above its parent whenever `health` takes damage,
+## and a "+N" in `heal_color` when it heals.
 ## Place it at the height the numbers should appear (e.g. above the head).
 ## Numbers are top-level, so they stay where they spawned while they float.
 
 @export var health: HealthComponent
 @export var color: Color = Color(1.0, 0.95, 0.85)
+@export var heal_color: Color = Color(0.45, 1.0, 0.45)
 @export var font_size: int = 48
 ## World units per font pixel; 0.012 is ~0.6 m tall text.
 @export var pixel_size: float = 0.012
@@ -17,6 +19,7 @@ extends Node3D
 
 func _ready() -> void:
 	health.damaged.connect(_on_damaged)
+	health.healed.connect(func(amount: int) -> void: spawn("+%d" % amount).modulate = heal_color)
 
 
 func _on_damaged(amount: int, _source: Node) -> void:

@@ -6,6 +6,8 @@ extends Node
 signal enemy_spawned(enemy: Node3D)
 
 @export var enemy_scene: PackedScene
+## When not empty, each spawn picks one of these at random instead.
+@export var enemy_scenes: Array[PackedScene] = []
 ## Spawned enemies are added here.
 @export var container: Node3D
 ## Keep spawns at least `min_distance` away from this node (usually the player).
@@ -22,7 +24,8 @@ func spawn_random() -> Node3D:
 	if point == null:
 		push_warning("EnemySpawner: no valid spawn point found")
 		return null
-	var enemy := enemy_scene.instantiate() as Node3D
+	var scene := enemy_scenes.pick_random() as PackedScene if not enemy_scenes.is_empty() else enemy_scene
+	var enemy := scene.instantiate() as Node3D
 	# Set the transform before add_child: enemies record their home (spawn
 	# point) and facing in _ready(). Face a random direction.
 	enemy.position = container.to_local(point)

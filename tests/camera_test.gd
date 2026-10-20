@@ -174,7 +174,10 @@ func test_wall_cutout() -> void:
 	var player := spawn_player(Vector3(2, 0, 1))
 	var rig := camera_rig
 	rig.set_zoom(0.3, true)
-	await ticks(2)
+	# The cutout is sent on render frames (_process): wait for those, not
+	# physics ticks (several ticks can fall in one slow frame).
+	await process_frame
+	await process_frame
 	# The headless renderer is a dummy: read the values the rig last sent.
 	check(rig.cutout_target.is_equal_approx(player.global_position + Vector3.UP * rig.cutout_target_height),
 		"cutout aimed at the player (%s)" % rig.cutout_target)
@@ -184,7 +187,8 @@ func test_wall_cutout() -> void:
 	check(is_equal_approx(rig.cutout_front_width, rig.overview_front_width),
 		"overview: walls on the camera side cut %.0f m to either side" % rig.cutout_front_width)
 	rig.set_zoom(1.0, true)
-	await ticks(2)
+	await process_frame
+	await process_frame
 	check(is_equal_approx(rig.cutout_radius, rig.close_cutout_radius),
 		"close-up hole radius %.1f m" % rig.cutout_radius)
 	check(is_equal_approx(rig.cutout_front_width, rig.close_front_width),

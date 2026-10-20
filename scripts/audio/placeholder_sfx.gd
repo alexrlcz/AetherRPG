@@ -31,6 +31,22 @@ static func hit(heavy: bool) -> AudioStreamWAV:
 	return _cache[key]
 
 
+## Coin pick-up: two bright partials with a quick chime decay.
+static func coin() -> AudioStreamWAV:
+	if not _cache.has("coin"):
+		var duration := 0.22
+		var samples := PackedFloat32Array()
+		samples.resize(int(duration * MIX_RATE))
+		for i in samples.size():
+			var t := float(i) / MIX_RATE
+			var envelope := exp(-t * 18.0) * minf(t * 400.0, 1.0)
+			# The second partial starts a beat later: a tiny "ching".
+			var late := exp(-maxf(t - 0.04, 0.0) * 14.0) if t >= 0.04 else 0.0
+			samples[i] = sin(TAU * 1568.0 * t) * envelope * 0.35 + sin(TAU * 2349.0 * t) * late * 0.3
+		_cache["coin"] = _to_wav(samples)
+	return _cache["coin"]
+
+
 ## Swing whoosh: noise swept through a moving low-pass, swelling and fading.
 static func whoosh(heavy: bool) -> AudioStreamWAV:
 	var key := "whoosh_heavy" if heavy else "whoosh_light"

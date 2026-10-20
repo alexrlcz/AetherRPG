@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_knight.tscn" id="1_knight"]
+[ext_resource type="Resource" path="res://resources/enemies/imp.tres" id="2_stats"]
+[ext_resource type="Resource" path="res://resources/enemies/imp_appearance.tres" id="3_look"]
+[ext_resource type="Resource" path="res://resources/weapons/imp_weapon.tres" id="4_weapon"]
+[ext_resource type="Resource" path="res://resources/loot/imp.tres" id="5_loot"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="6_definition"]
+
+[sub_resource type="CapsuleShape3D" id="Shape_body"]
+radius = 0.38
+height = 1.7
+
+[sub_resource type="CapsuleShape3D" id="Shape_hurt"]
+radius = 0.4
+height = 1.7
+
+[node name="EnemyImp" instance=ExtResource("1_knight")]
+stats = ExtResource("2_stats")
+eye_height = 1.4
+
+[node name="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("Shape_body")
+
+[node name="CollisionShape3D" parent="Hurtbox"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("Shape_hurt")
+
+[node name="HealthBar" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.95, 0)
+
+[node name="StaminaBar" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.86, 0)
+
+[node name="DamageNumbers" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+
+[node name="Appearance" parent="."]
+appearance = ExtResource("3_look")
+
+[node name="Weapon" parent="."]
+weapon = ExtResource("4_weapon")
+random_weapons = Array[ExtResource("6_definition")]([])
+
+[node name="Drops" parent="."]
+loot = ExtResource("5_loot")

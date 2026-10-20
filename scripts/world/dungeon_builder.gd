@@ -628,6 +628,10 @@ func _build_props(nav: Node3D, root: Node3D) -> void:
 			target = decor
 		else:
 			node = _build_prop(kind)
+		if node is Chest:
+			# Its loot is rolled for the level, the same every time.
+			node.level = _layout.level
+			node.rng_seed = hash([_layout.seed, _layout.level, "chest", counts[kind]])
 		node.name = "%s%d" % [kind.to_pascal_case(), counts[kind]]
 		var at := Vector2(entry[1], entry[2])
 		if PROP_RADIUS.has(kind):
@@ -664,7 +668,7 @@ func _clear_of_walls(p: Vector2, radius: float) -> Vector2:
 
 
 func _build_prop(kind: String) -> StaticBody3D:
-	var body := StaticBody3D.new()
+	var body: StaticBody3D = Chest.new() if kind == "chest" else StaticBody3D.new()
 	body.collision_layer = WORLD_LAYER
 	body.collision_mask = 0
 	match kind:
@@ -694,9 +698,15 @@ func _build_prop(kind: String) -> StaticBody3D:
 							Vector3(x, 0.375, z))
 			_add_box_shape(body, Vector3(1.8, 0.85, 1.0), Transform3D(Basis(), Vector3(0, 0.425, 0)))
 		"chest":
+			# The lid hangs from a hinge along the back top edge (Chest opens it).
 			_mesh(body, BoxMesh, {"size": Vector3(1.0, 0.5, 0.6)}, _mats["wood"], Vector3(0, 0.25, 0))
-			_mesh(body, BoxMesh, {"size": Vector3(1.04, 0.16, 0.64)}, _mats["wood_dark"], Vector3(0, 0.55, 0))
+			var hinge := Node3D.new()
+			hinge.name = "Lid"
+			hinge.position = Vector3(0, 0.47, -0.32)
+			body.add_child(hinge)
+			_mesh(hinge, BoxMesh, {"size": Vector3(1.04, 0.16, 0.64)}, _mats["wood_dark"], Vector3(0, 0.08, 0.32))
 			_mesh(body, BoxMesh, {"size": Vector3(0.12, 0.18, 0.05)}, _mats["gold"], Vector3(0, 0.45, 0.33))
+			(body as Chest).lid_pivot = hinge
 			_add_box_shape(body, Vector3(1.0, 0.65, 0.6), Transform3D(Basis(), Vector3(0, 0.325, 0)))
 		"rubble":
 			var rocks := [[Vector3(0, 0.25, 0), Vector3(0.8, 0.5, 0.7), 15.0],

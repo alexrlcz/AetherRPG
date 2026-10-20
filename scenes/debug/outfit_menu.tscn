@@ -1,0 +1,98 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/debug/outfit_menu.gd" id="1_outfits"]
+[ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="2_gear"]
+[ext_resource type="Resource" path="res://resources/items/gear/helmet_fantasy.tres" id="3_helmet"]
+[ext_resource type="Resource" path="res://resources/items/gear/cloak_poor.tres" id="4_cloak"]
+[ext_resource type="Resource" path="res://resources/items/gear/boots_leather.tres" id="5_boots"]
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+bg_color = Color(0.08, 0.08, 0.1, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.9, 0.75, 0.3, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+
+[node name="OutfitMenu" type="PanelContainer"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -556.0
+offset_top = 16.0
+offset_right = -288.0
+offset_bottom = 200.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("Style_panel")
+script = ExtResource("1_outfits")
+gear_items = Array[ExtResource("2_gear")]([ExtResource("3_helmet"), ExtResource("4_cloak"), ExtResource("5_boots")])
+
+[node name="VBox" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="VBox"]
+theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
+text = "Outfits & gear"
+
+[node name="Grid" type="GridContainer" parent="VBox"]
+theme_override_constants/h_separation = 8
+columns = 2
+
+[node name="OutfitLabel" type="Label" parent="VBox/Grid"]
+text = "Outfit"
+
+[node name="OutfitOption" type="OptionButton" parent="VBox/Grid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="VariantLabel" type="Label" parent="VBox/Grid"]
+text = "Colour"
+
+[node name="VariantOption" type="OptionButton" parent="VBox/Grid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="HoodLabel" type="Label" parent="VBox/Grid"]
+text = "Hood"
+
+[node name="HoodCheck" type="CheckBox" parent="VBox/Grid"]
+unique_name_in_owner = true
+
+[node name="PauldronsLabel" type="Label" parent="VBox/Grid"]
+text = "Pauldrons"
+
+[node name="PauldronsCheck" type="CheckBox" parent="VBox/Grid"]
+unique_name_in_owner = true
+
+[node name="HeadLabel" type="Label" parent="VBox/Grid"]
+text = "Head"
+
+[node name="HeadOption" type="OptionButton" parent="VBox/Grid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="BackLabel" type="Label" parent="VBox/Grid"]
+text = "Back"
+
+[node name="BackOption" type="OptionButton" parent="VBox/Grid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="FeetLabel" type="Label" parent="VBox/Grid"]
+text = "Feet"
+
+[node name="FeetOption" type="OptionButton" parent="VBox/Grid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="CloseButton" type="Button" parent="VBox"]
+unique_name_in_owner = true
+text = "Close"

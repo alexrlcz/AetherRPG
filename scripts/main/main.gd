@@ -108,6 +108,7 @@ func play_layout(new_layout: DungeonLayout) -> DungeonLayout:
 			enemy.queue_free()
 	var level := DungeonLevel.new()
 	level.name = "Dungeon"
+	level.add_to_group(DropComponent.CONTAINER_GROUP)  # Loot is freed with its level.
 	add_child(level)
 	move_child(level, index)
 	dungeon = level
@@ -159,9 +160,16 @@ func _connect_gate(level: DungeonLevel) -> void:
 func _spawn_enemies(for_layout: DungeonLayout) -> void:
 	if enemies == null:
 		return
-	for spawn in for_layout.spawns:
+	for i in for_layout.spawns.size():
+		var spawn := for_layout.spawns[i]
 		var entry: EnemyEntry = spawn["entry"]
 		var enemy := entry.scene.instantiate() as Node3D
+		var drops := enemy.get_node_or_null("Drops") as DropComponent
+		if drops:
+			if entry.loot:
+				drops.loot = entry.loot
+			drops.level = for_layout.level
+			drops.rng_seed = hash([for_layout.seed, for_layout.level, i, "drops"])
 		var weapon := enemy.get_node_or_null("Weapon") as WeaponComponent
 		if weapon and entry.weapon:
 			weapon.random_weapons = []

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyEntry" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/enemy_entry.gd" id="1_entry"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_puglin.tscn" id="2_scene"]
+[ext_resource type="Resource" path="res://resources/weapons/puglin_weapon.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/loot/puglin.tres" id="4_loot"]
+
+[resource]
+script = ExtResource("1_entry")
+display_name = "Puglin"
+scene = ExtResource("2_scene")
+weapon = ExtResource("3_weapon")
+loot = ExtResource("4_loot")
+cost = 1
+min_level = 1

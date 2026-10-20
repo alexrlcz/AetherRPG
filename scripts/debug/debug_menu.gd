@@ -3,7 +3,8 @@ extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
 ## "God mode" makes the player take no damage (HealthComponent.god_mode).
-## The panel also edits the player's appearance and weapon live (not saved)
+## The panel also edits the player's appearance and weapon live (not saved),
+## opens the Outfits panel (OutfitMenu) to dress the player,
 ## generates levels from a seed (Main.generate_level()) and plays the
 ## hand-made maps in LevelPool.MAPS_DIR (Main.play_map()).
 
@@ -21,7 +22,9 @@ extends CanvasLayer
 @export var main: Node
 
 @onready var _panel: Control = %Panel
+@onready var _scroll: ScrollContainer = $Panel/Scroll
 @onready var _count_label: Label = %EnemyCount
+@onready var _outfit_menu: OutfitMenu = $OutfitMenu
 
 
 func _ready() -> void:
@@ -35,9 +38,14 @@ func _ready() -> void:
 	%GodModeCheck.toggled.connect(set_god_mode)
 	%KillButton.pressed.connect(kill_all_enemies)
 	_setup_appearance_controls()
+	_outfit_menu.appearance_component = player_appearance
+	%OutfitsButton.pressed.connect(_toggle_outfits)
 	_setup_weapon_control()
 	_setup_level_controls()
 	_setup_map_controls()
+	# Taller than the window (small windows): scroll instead of running off it.
+	get_viewport().size_changed.connect(fit_to_screen)
+	fit_to_screen()
 	# Mouse-only: a focused button would swallow Space (jump) as ui_accept.
 	for button in _panel.find_children("*", "BaseButton", true, false):
 		(button as BaseButton).focus_mode = Control.FOCUS_NONE
@@ -46,6 +54,9 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_menu"):
 		_panel.visible = not _panel.visible
+		fit_to_screen()
+		if not _panel.visible:
+			_outfit_menu.close()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("debug_spawn_enemy"):
 		spawn_enemy()
@@ -55,6 +66,25 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(_delta: float) -> void:
 	if _panel.visible:
 		_count_label.text = "Enemies alive: %d" % _alive_enemies().size()
+
+
+## Caps the panel's height to the window (its rows scroll past that).
+func fit_to_screen() -> void:
+	var content := _scroll.get_child(0) as Control
+	var margins := _panel.get_theme_stylebox(&"panel").get_minimum_size().y
+	var room := get_viewport().get_visible_rect().size.y - _panel.offset_top - margins - 16.0
+	_scroll.custom_minimum_size = Vector2(0.0, minf(content.get_combined_minimum_size().y, room))
+	_panel.reset_size()
+
+
+## Opens / closes the Outfits panel, just left of this panel (which grows
+## with its contents).
+func _toggle_outfits() -> void:
+	_outfit_menu.toggle()
+	if _outfit_menu.visible:
+		_outfit_menu.reset_size()
+		_outfit_menu.global_position = Vector2(
+			_panel.global_position.x - _outfit_menu.size.x - 12.0, _panel.global_position.y)
 
 
 func spawn_enemy() -> Node3D:
@@ -185,6 +215,8 @@ func randomize_appearance() -> void:
 func _edit(change: Callable) -> void:
 	change.call(player_appearance.appearance)
 	player_appearance.apply(player_appearance.appearance)
+	if _outfit_menu.visible:
+		_outfit_menu.sync()  # A body change swaps the outfit's cut.
 
 
 func _sync_controls() -> void:

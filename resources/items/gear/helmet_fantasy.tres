@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GearDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="1_gear"]
+[ext_resource type="PackedScene" path="res://assets/equipment/gear/helmet_fantasy.glb" id="2_model"]
+
+[resource]
+script = ExtResource("1_gear")
+id = &"helmet_fantasy"
+display_name = "Fantasy Helmet"
+kind = 1
+auto_collect = false
+slot = 0
+model = ExtResource("2_model")
+anchor_bone = &"Head"
+fit = Transform3D(2.6, 0, 0, 0, 2.6, 0, 0, 0, 2.6, 0.0013, 0.0608, 0.0068)
+rig = 0
+hides_hair = true
+hides_parts = PackedStringArray("_Head_Hood")

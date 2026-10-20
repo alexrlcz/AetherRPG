@@ -43,6 +43,13 @@ extends CharacterBody3D
 ## - "jump" (Space) jumps `jump_height` from the floor when free to act. In
 ##   the air steering is weaker (`air_control`); attacks and dodges wait for
 ##   the landing (their presses stay buffered for `input_buffer_time`).
+## - "use_flask" (R) drinks a healing flask (`flask`) when free to act on
+##   the floor: the character stands still for the drink (no attacks, rolls,
+##   jumps or sprint; their presses stay buffered); a staggering hit or death
+##   cuts it short.
+## - "interact" (F) uses what `interactor` has in focus (the nearest chest,
+##   later gear on the floor, within reach): the character turns to it and
+##   is committed for the interaction's animation like a drink.
 ## - A staggering hit (`reaction`) interrupts everything for its hitstun; a
 ##   knockdown also turns the character to face the attacker so it falls
 ##   away from the blow.
@@ -114,6 +121,10 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 @export var melee: MeleeAttackComponent
 ## Pays for attacks, dodges and sprinting (optional).
 @export var stamina: StaminaComponent
+## Healing flasks, drunk with "use_flask" (optional).
+@export var flask: FlaskComponent
+## Uses chests (and later gear) with "interact" (optional).
+@export var interactor: Interactor
 
 var is_aiming: bool = false
 ## Facing is decoupled from movement (aiming or locked on, not sprinting); the
@@ -138,6 +149,8 @@ var _buffered: AttackInput = AttackInput.NONE
 var _buffer_left: float = 0.0
 var _dodge_buffer_left: float = 0.0
 var _jump_buffer_left: float = 0.0
+var _flask_buffer_left: float = 0.0
+var _interact_buffer_left: float = 0.0
 ## Index in `light_combo` of the next light attack.
 var _combo_step: int = 0
 ## Horizontal unit vector the character is turning toward.
@@ -181,6 +194,11 @@ func _physics_process(delta: float) -> void:
 		_buffered = AttackInput.NONE
 	_dodge_buffer_left -= delta
 	_jump_buffer_left -= delta
+	_flask_buffer_left -= delta
+	_interact_buffer_left -= delta
+	# Drinking a flask or using something (a chest): committed, standing still.
+	var occupied := (flask != null and flask.is_drinking()) \
+		or (interactor != null and interactor.is_busy())
 
 	if reaction and melee:
 		# Hyper armour while winding up and swinging; recovery is punishable.
@@ -193,28 +211,47 @@ func _physics_process(delta: float) -> void:
 		_stop_sprint()  # Let go of the direction keys: the sprint ends.
 	var sprint_held := sprint_toggled and move_dir != Vector3.ZERO \
 		and (stamina == null or stamina.can_act())
-	if dodge and not reacting and grounded:
+	if dodge and not reacting and grounded and not occupied:
 		_update_dodge(move_dir)
 	var dodging := dodge != null and dodge.is_dodging()
-	if melee and not reacting and not dodging and grounded:
+	if melee and not reacting and not dodging and grounded and not occupied:
 		if move_dir != Vector3.ZERO and _buffered == AttackInput.NONE and melee.can_move_cancel():
 			melee.end_recovery()
 		var at_sprint_speed := Vector2(velocity.x, velocity.z).length() > move_speed + 0.5
 		_update_attacks(sprint_held and at_sprint_speed)
 	var attacking := melee != null and melee.is_busy()
 	var winding_up := attacking and melee.phase == MeleeAttackComponent.Phase.WINDUP
-	is_sprinting = sprint_held and not attacking and not reacting and not dodging
+	if _flask_buffer_left > 0.0 and flask and grounded and not attacking and not reacting \
+			and not dodging and not occupied and flask.start():
+		_flask_buffer_left = 0.0
+		occupied = true
+		_stop_sprint()
+		_stop_dead()
+	if _interact_buffer_left > 0.0 and interactor and grounded and not attacking and not reacting \
+			and not dodging and not occupied:
+		var target := interactor.focus
+		if interactor.try_interact():
+			_interact_buffer_left = 0.0
+			occupied = true
+			_stop_sprint()
+			_stop_dead()
+			var to_target := target.global_position - global_position
+			to_target.y = 0.0
+			if to_target.length_squared() > 0.0001:
+				facing_direction = to_target.normalized()
+				rotation.y = atan2(-facing_direction.x, -facing_direction.z)  # Face what it uses.
+	is_sprinting = sprint_held and not attacking and not reacting and not dodging and not occupied
 	if is_sprinting and stamina:
 		stamina.drain(sprint_stamina_per_second * delta)
 
-	if attacking or reacting or dodging:
+	if attacking or reacting or dodging or occupied:
 		move_dir = Vector3.ZERO  # Committed: only lunge / knockback / roll move the body.
 	if winding_up:
 		var aim_dir := _attack_aim()
 		if aim_dir != Vector3.ZERO:
 			facing_direction = aim_dir
-	elif attacking or reacting or dodging:
-		pass  # Facing stays locked through the strike, recovery, hitstun and roll.
+	elif attacking or reacting or dodging or occupied:
+		pass  # Facing stays locked through the strike, recovery, hitstun, roll and drink.
 	elif is_strafing and is_locked_on():
 		var target_dir := lock_on.direction_from(global_position)
 		if target_dir != Vector3.ZERO:
@@ -243,9 +280,10 @@ func _physics_process(delta: float) -> void:
 		velocity.z = reaction.knockback_velocity.z
 	if winding_up:
 		_apply_rotation(delta, attack_turn_speed)
-	elif not attacking and not reacting and not dodging:
+	elif not attacking and not reacting and not dodging and not occupied:
 		_apply_rotation(delta, turn_speed)
-	if _jump_buffer_left > 0.0 and grounded and not attacking and not reacting and not dodging:
+	if _jump_buffer_left > 0.0 and grounded and not attacking and not reacting and not dodging \
+			and not occupied:
 		_jump_buffer_left = 0.0
 		velocity.y = sqrt(2.0 * _gravity * air_gravity_multiplier * jump_height)
 	move_and_slide()
@@ -262,6 +300,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		request_dodge()
 	elif event.is_action_pressed("jump"):
 		request_jump()
+	elif event.is_action_pressed("use_flask"):
+		request_flask()
+	elif event.is_action_pressed("interact"):
+		request_interact()
 	elif event.is_action_pressed("sprint"):
 		sprint_toggled = not sprint_toggled
 	elif event.is_action_pressed("walk_toggle"):
@@ -294,6 +336,22 @@ func request_dodge() -> void:
 	if is_dead:
 		return
 	_dodge_buffer_left = input_buffer_time
+
+
+## Queues a flask press; the drink starts as soon as the character is free
+## on the floor (and has a charge and is hurt).
+func request_flask() -> void:
+	if is_dead:
+		return
+	_flask_buffer_left = input_buffer_time
+
+
+## Queues an interact press; it uses the focused target as soon as the
+## character is free on the floor.
+func request_interact() -> void:
+	if is_dead:
+		return
+	_interact_buffer_left = input_buffer_time
 
 
 ## Queues a jump press; it happens as soon as the character is free on the
@@ -413,6 +471,12 @@ func _on_staggered(event: HitEvent) -> void:
 		melee.cancel()
 	if dodge:
 		dodge.cancel()
+	if flask:
+		flask.cancel()
+	_flask_buffer_left = 0.0
+	if interactor:
+		interactor.cancel()
+	_interact_buffer_left = 0.0
 	_buffered = AttackInput.NONE
 	_dodge_buffer_left = 0.0
 	_jump_buffer_left = 0.0
@@ -446,8 +510,15 @@ func _on_died() -> void:
 	_dodge_buffer_left = 0.0
 	_jump_buffer_left = 0.0
 	_stop_sprint()
+	_flask_buffer_left = 0.0
+	_interact_buffer_left = 0.0
 	if dodge:
 		dodge.cancel()
+	if flask:
+		flask.cancel()
+	if interactor:
+		interactor.cancel()
+		interactor.enabled = false
 	# The body stays as an anchor but no longer blocks enemies.
 	collision_layer = 0
 	if melee:

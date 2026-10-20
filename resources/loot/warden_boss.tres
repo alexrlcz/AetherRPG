@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="LootTable" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/loot_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://scripts/items/loot_entry.gd" id="2_entry"]
+[ext_resource type="Resource" path="res://resources/items/gold.tres" id="3_gold"]
+
+[sub_resource type="Resource" id="Guaranteed1"]
+script = ExtResource("2_entry")
+item = ExtResource("3_gold")
+amount = Vector2i(60, 80)
+per_level = 0.0
+
+[resource]
+script = ExtResource("1_table")
+guaranteed = Array[ExtResource("2_entry")]([SubResource("Guaranteed1")])

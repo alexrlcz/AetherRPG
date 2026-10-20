@@ -60,6 +60,8 @@
 | `sprint` (toggle) | Left Alt        | Toggle sprinting (8 m/s while moving); breaks when you stop, attack, take damage, run out of stamina or die (press again to resume). Faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
 | `walk_toggle`  | Left Ctrl          | Toggle walking (1.6 m/s, `Walk_Formal` cycle). |
 | `zoom_in/out`  | Mouse wheel        | Zoom; zooming in past the overview blends into a third-person view. |
+| `interact`     | F                  | Use what's in reach (a chest now; gear on the floor later), with a "[F] ..." prompt (see Loot). |
+| `use_flask`    | R                  | Drink a healing flask (see Healing flasks). Shares R with `restart`: drinking needs you alive, restarting dead. |
 | `restart`      | R                  | After death (1 s delay): start a new run at level 1 (new seed). |
 | `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **god mode**, **generate a level** (seed + Generate, or Random level), player appearance and **player weapon** (Sword / Greatsword). |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
@@ -286,6 +288,14 @@ overhead cut.
   "Player appearance" section: body, skin texture, skin tint, hairstyle, hair
   colour, eyebrows, beard and Randomize. It edits a duplicate of the player's
   CharacterAppearance and calls `apply()`; changes are not saved.
+  The rows sit in a ScrollContainer whose height `fit_to_screen()` caps to
+  the window (re-fitted on resize and when opened), so a small window (the
+  default 1152x648) scrolls instead of cutting off the bottom rows.
+  "Outfits..." (under Kill all enemies) opens the Outfits panel (`OutfitMenu`,
+  `scenes/debug/outfit_menu.tscn`, a child of the debug menu placed just left
+  of its panel): outfit (None / Peasant / Ranger), colour, Hood and Pauldrons
+  (disabled when the outfit has none), Close. It edits the same appearance
+  live; closing the debug menu closes it too.
   Frees itself in non-debug builds (`OS.is_debug_build()`).
 
 ## Character visuals and animation
@@ -341,7 +351,7 @@ overhead cut.
   original units.
 - Appearance: `CharacterAppearance` resource (`scripts/characters/`) = body
   (male/female), skin texture (light/dark) + tint, hairstyle, hair colour,
-  beard, eyebrows. `AppearanceComponent` (node `Appearance`) builds it on the
+  beard, eyebrows, and an outfit (see Outfits below). `AppearanceComponent` (node `Appearance`) builds it on the
   rig at `_ready` and on every `apply()`: it removes the rig's preview meshes,
   moves the skinned meshes of each part glTF onto the rig's `Skeleton3D`
   (skins bind by bone name), gives each part its own tinted material copy
@@ -395,6 +405,150 @@ overhead cut.
 - Old knight assets (`assets/characters/knight/`, `knight_rig.tscn`,
   `build_knight_rig.gd`, `knight_post_import.gd`, `RagdollLimbFollow`) are
   no longer used; kept until the new characters are confirmed.
+
+## Outfits
+
+- Assets: Quaternius "Modular Character Outfits - Fantasy" (Standard, CC0),
+  in `assets/characters/outfits/`: the four whole outfits
+  (`Male_/Female_` + `Peasant` / `Ranger`, glTF) with their textures (4K
+  cloth textures downscaled to 2K on import into the repo), the extra
+  colour textures `T_Peasant_2_BaseColor` / `T_Ranger_3_BaseColor`, and the
+  licence. They are skinned to the same 65-bone Universal skeleton as the
+  bodies, so their meshes attach to the rig like hair. The pack's separate
+  "Modular Parts" files weren't copied: every part is already its own mesh
+  in the whole outfits.
+- `CharacterAppearance`: `outfit` ("None" / "Peasant" / "Ranger",
+  `OUTFITS`), `outfit_variant` (colour, names in `OUTFIT_VARIANTS`:
+  Peasant Linen / Earthen, Ranger Forest / Sand), `hood`, `pauldrons`
+  (`OUTFIT_PIECES`: only the ranger has them).
+- `AppearanceComponent` with an outfit:
+  - The body shows only its head and neck: a mesh cut from the body,
+    keeping triangles whose corners are mostly weighted to `Head` /
+    `neck_01` (`HEAD_BONES`), made once per body and shared (static
+    cache). The full body under clothes pokes through everywhere (the pack's
+    readme says the same).
+  - The outfit for the body (`<Male|Female>_<outfit>.gltf`) is attached
+    mesh by mesh, leaving off `*_Head_Hood` / `*_Acc_Pauldron*` when
+    toggled off. A worn hood hides the hairstyle (beard and eyebrows stay).
+  - The outfit's own skin surfaces (hands, `MI_Regular_*` materials) get the
+    body's skin texture (light / dark) and tint: same UV layout, so they
+    match the face. The colour variant swaps the cloth texture
+    (`OUTFIT_TEXTURES`).
+- `tests/outfit_test.gd`: ranger on the real player (outfit meshes,
+  head-only body below 40% of the triangles and nothing below 1.3 m, hood
+  hides hair but not the beard, hands use the skin texture and tint), hood
+  / pauldrons off, colour variant, the female cut, the head cut shared,
+  None restores the full body, and the menu in Main (button opens it beside
+  the debug panel, choosing dresses the player, colours listed, hood toggle
+  per outfit, F1 closes it).
+
+## Gear (helmet, cloak, boots)
+
+- Assets (Sketchfab, credits and licences in
+  `assets/equipment/gear/CREDITS.md`): `helmet_fantasy.glb` (badbanshee,
+  CC-BY 4.0), `boots_leather.glb` (Flenehens, CC-BY 4.0), `cloak_poor.glb`
+  (AQUILA miniatures, **CC-BY-NC-SA 4.0: non-commercial only, replace
+  before any commercial release**). None are rigged.
+- `GearDefinition` (`scripts/items/gear_definition.gd`, extends
+  ItemDefinition with kind GEAR, not auto-collected; `.tres` in
+  `resources/items/gear/`): `slot` (HEAD / BACK / FEET), `model`,
+  `anchor_bone`, `fit` (model space -> offset from the anchor bone's rest
+  origin, skeleton axes: Y up, facing +Z; fitted to the male body, other
+  bodies move with their anchor), `rig`, `hides_hair`, `hides_parts`
+  (outfit mesh names), `hides_body_bones` (body triangles cut away).
+  `CharacterAppearance.gear` holds what is worn (`gear_in(slot)`,
+  `set_gear(slot, item)`). Stats come with the character stats step.
+- `GearBuilder` (`scripts/characters/gear_builder.gd`, static) turns a
+  gear model into meshes skinned to the character's Skeleton3D: the model's
+  surfaces are moved into skeleton space by the fit (normals, tangents,
+  winding fixed for mirroring), weighted by the rig, given a Skin of named
+  binds; cached per gear and body rests (first build of the cloak ~0.15 s,
+  then ~0.05 s per apply).
+  - RIGID: all on the anchor (helmet on `Head`, 2.6x, ~3.5 cm clear of the
+    skull, hides the hair and an outfit hood).
+  - BOOTS: the model is the right boot (turned 180 deg: its steel cap is the
+    heel), a mirrored copy goes on the left; weights calf above the ankle
+    (0.1-0.2 m blend), toes past the ball, foot between. Boots cut the body's
+    feet (`hides_body_bones`) and hide an outfit's feet, so no toe pokes out.
+  - CLOAK: `ensure_cloak_bones()` hangs CLOAK_COLUMNS (5) chains of
+    CLOAK_JOINTS (4) bones `cloak_<column>_<joint>` from `spine_03`, placed
+    on the cloth itself (columns across 80% of the collar, joints from under
+    the collar to above the hem, at the cloth's mean depth). Cloth is
+    weighted bilinearly to the chains; the top CLOAK_COLLAR (0.12 m) blends
+    to `spine_03` so the collar stays on the shoulders. A
+    `SpringBoneSimulator3D` ("CloakSpring" under the Skeleton3D, `active`
+    only while a cloak is worn) swings the chains: stiffness 8, drag 0.8,
+    gravity 5, radius 0.05, colliding with capsules on both thighs and
+    calves, the pelvis and `spine_02`. Measured on the player (cloth angle
+    from hanging straight down): ~12 deg idle, ~38 deg running 6 m/s,
+    ~52 deg sprinting 8 m/s, back to rest within 2.5 s of stopping; it
+    follows a roll and the ragdoll without stretching. The cloak is fitted
+    behind the back (about 3 cm clear at the shoulders, 6 cm at the calves,
+    tilted 3 deg back).
+  - Note: the simulated pose only exists during the skeleton's update; read
+    cloak bones inside `Skeleton3D.skeleton_updated`.
+- `AppearanceComponent` builds gear after the body and outfit, applies its
+  hides (cut body via `_cut_body()`, shared with the outfit head cut), and
+  turns the cloak simulation on / off. Creatures wear no gear.
+- Outfits & gear panel (`OutfitMenu`): Head / Back / Feet pickers with
+  "None" and the gear of that slot (`gear_items` on the scene).
+- `tests/gear_test.gd`: items and slots; worn meshes, hair hidden, feet cut,
+  each piece's skin binds, cloak chains and spring, boots on the floor; the
+  cloak lifts sprinting, settles, survives a roll and the ragdoll; gear on
+  the female body; cloak off stops the simulation; the panel's pickers.
+
+## Monsters (Bestiary)
+
+- Assets: Quaternius "Bestiary - Dungeon Monsters Kit" (Standard, the free
+  part: Imp and Puglin) in `assets/characters/monsters/`: `Imp.glb`,
+  `Puglin.glb` (textures embedded, extracted by the import), the 2nd / 3rd
+  colour textures, the licence. The models carry no animations; they are
+  rigged to the Universal skeleton (55 of its bones: no pinkies or toe
+  tips), which the pack meant for the Universal Animation Library, i.e.
+  the clips the game already has. Each one's weapon (Imp mace, Puglin
+  stick) is part of its mesh, skinned to the right hand.
+- `CharacterAppearance.creature` ("Imp" / "Puglin", `CREATURES` with the
+  colour names: Imp Crimson / Bile / Frost, Puglin Moss / Blood / Deep) and
+  `creature_variant` (-1 = random). `AppearanceComponent` then wears the
+  creature model instead of a body (no hair or outfit): its bone rests
+  become the rig's proportions like a body's, and `Skeleton3D.motion_scale`
+  is set to the creature's pelvis height / the animation pelvis height, so
+  the human-authored pelvis bob and crouches scale to the creature's legs
+  (without it the 0.93 m Puglin's feet sank into the floor). The random
+  colour is rolled per character (`_creature_variant`), not written into
+  the appearance resource the enemies of a type share.
+- Enemy scenes `enemy_imp.tscn` / `enemy_puglin.tscn` inherit
+  `enemy_knight.tscn` (same AI, combat, bars, ragdoll, drops) and override
+  stats, appearance, weapon (no random weapons), loot, body / hurtbox
+  capsules, bar and damage-number heights and `eye_height`. Weapons
+  (`resources/weapons/imp_weapon.tres`, `puglin_weapon.tres`) have no model
+  (the mesh has it): a hitbox fitted to the weapon's bind-pose box in hand
+  space and one swing (`resources/combat/imp_swing.tres`,
+  `puglin_swing.tres`, the `Sword_Attack` clip like the club).
+
+  | | Imp | Puglin |
+  |---|---|---|
+  | Height (head bone) | 1.68 m (1.38) | 0.93 m (0.65) |
+  | Health / poise / knockback x | 45 / 18 / 1.1 | 26 / 6 / 1.4 |
+  | Speed / turn | 4.2 / 12 | 4.6 / 14 |
+  | Swing: damage, wind-up, recovery | 13, 0.55 s, 0.75 s | 7, 0.45 s, 0.6 s |
+  | Reach | 1.6 m | 1.25 m |
+  | Stamina / regen | 55 / 9 | 40 / 10 |
+  | Body capsule / hurtbox (r x h) | 0.38 x 1.7 / 0.4 x 1.7 | 0.35 x 1.0 / 0.42 x 1.4 |
+  | Roster cost, first level, gold | 2, 1, 4-7 | 1, 1, 2-4 |
+
+  The Puglin's hurtbox reaches above its 0.93 m model so the player's
+  waist-high swings still connect (the light combo lands 3 of 3).
+- Both are in the dungeon roster (`resources/encounters/knights.tres`,
+  entries `imp.tres` / `puglin.tres`); at cost 1 Puglins are the most
+  common enemy (29 level-2 layouts: 268 Puglins, 152 Imps, 144 club
+  knights; tune with `cost` / `min_level`). Debug F2 spawns a random
+  knight, Imp or Puglin (`EnemySpawner.enemy_scenes`).
+- `tests/monster_test.gd`: model and per-monster random colour, health and
+  reach, no extra weapon model, standing head height, idling at its own
+  scale with feet on the floor, chasing and swinging (`Sword_Attack`) and
+  hitting the player for its damage, the player's combo hitting a Puglin,
+  an imp's gold, the roster placing both.
 
 ## Weapons
 
@@ -647,6 +801,130 @@ overhead cut.
 - UI: the HUD's yellow `StaminaBar` under the health bar (dimmed while
   exhausted); enemies get a thin yellow `WorldStaminaBar` under their health
   bar, hidden at full stamina, faded while exhausted.
+
+## Healing flasks
+
+- `FlaskComponent` (`scripts/components/`, node `Flask` on the player):
+  `max_charges` 3, each drink restores `heal_fraction` 35% of max health
+  (`heal_amount()`, 35 at 100 max). A drink is a committed action of
+  `duration` 1.1 s; the health comes back at `heal_time` 0.6 s, and only
+  then is the charge spent. `cancel()` before that (stagger, death) wastes
+  the time but keeps the charge. `can_drink()`: a charge left, not already
+  drinking, alive and hurt (a drink at full health is refused). Charges
+  refill whenever the run moves to a new level (`GameRun.level_changed`,
+  `refill_on_new_level`). Signals: `charges_changed(current, maximum)`,
+  `started`, `drank(amount)`, `interrupted`.
+- Player (`PlayerController.request_flask()`, "use_flask" = R): buffered for
+  `input_buffer_time`, starts when grounded and not attacking, rolling,
+  staggered or already drinking. While drinking the character stands still
+  with its facing locked, and doesn't attack, roll, jump or sprint (those
+  presses still buffer); starting a drink ends sprinting. A staggering hit
+  or death cancels it.
+- Animation: the asset library has no drinking clip; `UAL2/Consume` (a
+  palm-up "use an item" gesture, fitted to 1.1 s) stands in. A small
+  glowing flask (`LeftHand/FlaskProp`, a BoneAttachment3D on `hand_l` in
+  player.tscn) shows in the raised hand only while drinking (`prop`).
+- Feedback: the HUD's `FlaskLabel` ("Flasks 2 / 3 [R]", dimmed at 0) above
+  the health bar; `DamageNumbers` pops a green "+35" on `healed` (for every
+  character with damage numbers).
+- `tests/flask_test.gd`: heal amount and timing, rooted, one charge, no
+  attack / roll during it, refused at full health / no charges, a real
+  staggering hit interrupts it and keeps the charge, refill on a new
+  level, R bound to both actions, the HUD label.
+
+## Gold and pick-ups
+
+- `PlayerProfile` (`scripts/run/player_profile.gd`, autoload "Profile";
+  scripts reach it with `PlayerProfile.current()`, like GameRun): what the
+  player keeps across runs and play sessions. Now `gold` (`add_gold()`,
+  never below 0; signal `gold_changed(total, delta)`); the inventory joins
+  it later. Saved as JSON to `save_path` (`user://profile.json`) on every
+  change, loaded on start. When a script runs as the main loop (`-s`: the
+  test suites and tools) the autoload neither saves nor loads, so tests
+  never touch the real save. Unlike RunState nothing in it resets on death
+  or a new run.
+- `ItemDefinition` (`scripts/items/item_definition.gd`, `.tres` in
+  `resources/items/`): `id`, `display_name`, `kind` (CURRENCY / GEAR),
+  `auto_collect`. `gold.tres` is the first.
+- `Pickup` (`scripts/items/pickup.gd`, Area3D on the `interactable` layer,
+  group `pickups`): an item and an `amount` lying in the world, built in
+  code (currency: a spinning, bobbing gold coin, slightly emissive;
+  anything else: a placeholder glowing sack until gear has models). `launch(from, velocity, floor_y)` pops it out in an arc (no
+  physics body; one small bounce). After `collect_delay` 0.45 s an
+  `auto_collect` item within `magnet_radius` 3.5 m (horizontal) of the
+  player flies to their chest, accelerating 4 -> 16 m/s, and is collected
+  within 0.5 m: currency goes to the profile, a placeholder "ching" plays
+  (`PlaceholderSfx.coin()`), `collected(pickup, collector)` is emitted. Gear
+  will wait for the interact key (later step).
+- `DropComponent` (`scripts/items/drop_component.gd`, node `Drops` on the
+  knight): on `health.died` rolls its `loot` table for `level` and hands
+  the result to `LootSpawner` (a ring from 1 m up). Pickups go into the
+  first node of group `drop_container` (Main's current level, so they are
+  freed with it), else next to the owner. `rng_seed` (0 = random) makes
+  drops repeatable. Main gives each spawned enemy its `EnemyEntry.loot`,
+  the level and a seed from the level seed, level and spawn index; enemies
+  spawned by other means (debug F2) keep the scene's club-knight table.
+- HUD: `GoldLabel` ("Gold N") under the level title, pulsing on each gain.
+- `tests/gold_test.gd`: save / load / floor at 0 on a scratch profile file,
+  a drop's coins (count, total, pop, landing, seeded), coins wait out of
+  reach then fly in and add to the profile, no coin behind a wall, Main's
+  per-entry gold and seeds, the HUD label.
+
+## Loot
+
+- `LootTable` / `LootEntry` (`scripts/items/`, `.tres` in
+  `resources/loot/`): every `guaranteed` entry drops on its own `chance`;
+  then `rolls` picks are made from `weighted` by `weight`, with
+  `nothing_weight` the share of a pick that gives nothing. An entry's
+  `amount` (x..y) grows by `per_level` (a fraction per level above the
+  first). `roll(rng, level)` returns `[[item, amount], ...]`, one line per
+  item; `LootTable.gold_only(low, high)` builds a quick table. Items are
+  fixed (no rarity tiers or rolled stats). Until gear exists (equipment
+  step) the tables hold only gold:
+
+  | Table | Drops |
+  |---|---|
+  | `club_knight` | 3-6 gold, +15%/level |
+  | `greatsword_knight` | 6-10 gold, +15%/level |
+  | `warden_boss` | 60-80 gold |
+  | `chapter_boss` | 120-150 gold |
+  | `chest` | 15-30 gold +20%/level, and 1 in 3 a bonus 10-20 (+20%/level) |
+
+- `LootSpawner` (`scripts/items/loot_spawner.gd`, static): turns a roll
+  into Pickups popping out from a point: currency as coins of up to 5
+  (at most 8 per line), anything else one pickup per line; in a ring or a
+  fan (`direction`, `spread`). A throw that a ray says would cross a wall
+  (world layer) is shortened to land 0.4 m in front of it.
+- `Interactor` (`scripts/components/interactor_component.gd`, node
+  `Interactor` on the player): every tick focuses the nearest node of group
+  `interactables` within `reach` 1.8 m (horizontal) whose `can_interact()`
+  is true (`focus`, signal `focus_changed`). `try_interact()` plays the
+  target's `interact_animation()` fitted to `duration` 1.1 s (`is_busy()`
+  meanwhile) and calls `interact(player)`. An interactable is any Node3D in
+  the group with `can_interact()`, `interact_prompt()`, `interact(by)` and
+  optionally `interact_animation()`. Disabled on death.
+- Player: "interact" (F) is buffered like the other presses (0.3 s) and
+  used when free on the floor (not attacking, rolling, staggered,
+  drinking); the character turns to the target and is committed for the
+  interaction like a drink (no moving, attacking, rolling, jumping;
+  sprint ends). A staggering hit cancels the animation (what already
+  happened stays).
+- `Chest` (`scripts/items/chest.gd`, a StaticBody3D): the `chest` prop.
+  DungeonBuilder builds it with its lid under a `Lid` hinge at the back top
+  edge and sets `level` (the layout's) and `rng_seed` (from the layout seed,
+  level and chest index), so a level's chests always hold the same.
+  `interact()` opens it once: the opener plays `UAL2/Chest_Open`, the lid
+  swings back 105 deg (from 0.3 s), and at 0.7 s `loot`
+  (`resources/loot/chest.tres`) is thrown out of the front (the lock side,
+  local +Z) in a +-55 deg fan. Then it leaves the interactables group.
+- HUD: `InteractPrompt` ("[F]  Open chest", bottom centre) while something
+  is in focus.
+- `tests/loot_test.gd`: chance and weight odds over thousands of rolls,
+  per-level growth, seeded rolls, the shipped tables drop their own
+  amounts; a built chest is focused in reach, F turns the player to it,
+  plays the clip, keeps them still, opens the lid, throws the level-4 gold
+  out of the front and the player collects it; it can't be reused; no use
+  out of reach, mid-swing (the press expires) or dead; the HUD prompt.
 
 ## Levels
 
@@ -943,12 +1221,17 @@ tools/import/ual_post_import.gd      Strips per-bone position tracks from the an
 tools/build_mixamo_library.gd        Retargets Mixamo FBX locomotion onto the Universal skeleton
 assets/characters/mixamo/            mixamo_locomotion.res (generated; rig library "MX")
 assets/characters/universal/         Base character bodies, hair parts, animation library (CC0)
+assets/characters/outfits/           Modular Character Outfits - Fantasy: Peasant / Ranger, male and female (CC0)
+assets/characters/monsters/          Bestiary - Dungeon Monsters Kit: Imp, Puglin (CC0)
+assets/equipment/gear/               Helmet, boots (CC-BY), cloak (CC-BY-NC-SA!); CREDITS.md
+resources/items/gear/                GearDefinitions (helmet, cloak, boots)
 resources/characters/                CharacterAppearance .tres files
 (unused)                             knight_rig.tscn, build_knight_rig.gd, knight_post_import.gd, assets/characters/knight/
 assets/equipment/                    Weapon and armour FBX meshes
 scenes/camera/iso_camera_rig.tscn    Follow camera: overview -> third-person zoom, orbit
 scenes/ui/hud.tscn                   Player health bar, "Defeated" + restart hint
 scenes/debug/debug_menu.tscn         F1 debug panel
+scenes/debug/outfit_menu.tscn        Outfits panel (opened from the debug panel)
 scripts/main/main.gd                 Restart flow (on the Main node)
 scripts/world/enemy_spawner.gd       Random navmesh spawns
 scripts/world/dungeon_layout.gd      DungeonLayout: a level on the cell grid (+ Dungeon Scrawl reader)
@@ -960,13 +1243,17 @@ scripts/world/room_analysis.gd       RoomAnalysis: rooms, start / exit of hand-m
 scripts/world/level_pool.gd          LevelPool: generated level or a hand-made map per run level
 scripts/world/exit_gate.gd           ExitGate: the portal to the next level
 scripts/run/run_state.gd             RunState autoload (class GameRun): the current run
+scripts/run/player_profile.gd        Profile autoload (class PlayerProfile): gold (later inventory), kept across runs, saved
+scripts/items/                       ItemDefinition, Pickup, DropComponent, LootTable / LootEntry, LootSpawner, Chest
+resources/items/                     ItemDefinitions (gold)
+resources/loot/                      LootTables (enemies, bosses, chests)
 scripts/ui/level_fade.gd             LevelFade: fade + level title over level swaps
 scripts/world/prop_scatter.gd        PropScatter: route reservation + prop rules
 scripts/world/encounter_planner.gd   EncounterPlanner: enemy budget and placement
 scripts/world/enemy_roster.gd        EnemyRoster / enemy_entry.gd EnemyEntry: data for the planner
 resources/encounters/                Rosters and enemy entries
 scripts/ui/damage_numbers.gd         Floating combat numbers
-scripts/components/                  health, stamina, hitbox, hurtbox, melee attack, dodge, hit flash components
+scripts/components/                  health, stamina, flask, interactor, hitbox, hurtbox, melee attack, dodge, hit flash components
 scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop, WeaponDefinition, WeaponComponent
 scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
 scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
@@ -978,6 +1265,8 @@ tests/lock_on_test.gd                Headless lock-on / attack-direction checks 
 scripts/player/player_controller.gd
 scripts/player/lock_on_component.gd  Enemy lock-on (Q / Tab) and target marker
 scenes/enemies/enemy_knight.tscn     Melee enemy (ash-skinned humanoid + club)
+scenes/enemies/enemy_imp.tscn        Imp (inherits the knight scene)
+scenes/enemies/enemy_puglin.tscn     Puglin (inherits the knight scene)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
 resources/enemies/                   EnemyStats and enemy CharacterAppearance .tres files
 resources/navigation/                Baked navmeshes

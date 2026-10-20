@@ -5,9 +5,10 @@
 [ext_resource type="PackedScene" path="res://scenes/enemies/enemy_knight.tscn" id="3_knight"]
 [ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="4_greatsword"]
 [ext_resource type="Resource" path="res://resources/encounters/club_knight.tres" id="5_club"]
-
+[ext_resource type="Resource" path="res://resources/loot/chapter_boss.tres" id="90_loot"]
 [sub_resource type="Resource" id="Entry_champion"]
 script = ExtResource("2_entry")
+loot = ExtResource("90_loot")
 display_name = "The Cinder Champion"
 scene = ExtResource("3_knight")
 weapon = ExtResource("4_greatsword")

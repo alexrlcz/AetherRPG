@@ -24,6 +24,8 @@
 [ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="27_feedback"]
 [ext_resource type="Script" path="res://scripts/components/stamina_component.gd" id="32_stamina"]
 [ext_resource type="Script" path="res://scripts/ui/world_stamina_bar.gd" id="33_stamina_bar"]
+[ext_resource type="Script" path="res://scripts/items/drop_component.gd" id="34_drops"]
+[ext_resource type="Resource" path="res://resources/loot/club_knight.tres" id="35_loot"]
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.4
@@ -84,6 +86,11 @@ script = ExtResource("3_health")
 [node name="Stamina" type="Node" parent="."]
 script = ExtResource("32_stamina")
 regen_delay = 0.8
+
+[node name="Drops" type="Node" parent="." node_paths=PackedStringArray("health")]
+script = ExtResource("34_drops")
+health = NodePath("../HealthComponent")
+loot = ExtResource("35_loot")
 
 [node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
 collision_layer = 16

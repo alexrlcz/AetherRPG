@@ -4,13 +4,18 @@ extends CanvasLayer
 
 @export var player_health: HealthComponent
 @export var player_stamina: StaminaComponent
+@export var player_flask: FlaskComponent
+@export var player_interactor: Interactor
 
 @onready var _health_bar: ProgressBar = %HealthBar
 @onready var _health_label: Label = %HealthLabel
 @onready var _stamina_bar: ProgressBar = %StaminaBar
+@onready var _flask_label: Label = %FlaskLabel
 @onready var _defeated_label: Label = %DefeatedLabel
 @onready var _restart_hint: Label = %RestartHint
 @onready var _level_label: Label = %LevelLabel
+@onready var _gold_label: Label = %GoldLabel
+@onready var _interact_prompt: Label = %InteractPrompt
 @onready var _boss_panel: Control = %BossPanel
 @onready var _boss_name: Label = %BossName
 @onready var _boss_bar: ProgressBar = %BossBar
@@ -27,8 +32,18 @@ func _ready() -> void:
 		bind_player_health(player_health)
 	if player_stamina:
 		bind_player_stamina(player_stamina)
+	_flask_label.hide()
+	if player_flask:
+		bind_player_flask(player_flask)
+	_interact_prompt.hide()
+	if player_interactor:
+		bind_player_interactor(player_interactor)
 	GameRun.current().level_changed.connect(_on_level_changed)
 	_on_level_changed(GameRun.current().level)
+	var profile := PlayerProfile.current()
+	if profile:
+		profile.gold_changed.connect(_on_gold_changed)
+		_on_gold_changed(profile.gold, 0)
 
 
 func bind_player_health(health: HealthComponent) -> void:
@@ -47,6 +62,31 @@ func bind_player_stamina(stamina: StaminaComponent) -> void:
 	_refresh_stamina_tint()
 
 
+func bind_player_flask(flask: FlaskComponent) -> void:
+	player_flask = flask
+	flask.charges_changed.connect(_on_flask_charges_changed)
+	_flask_label.show()
+	_on_flask_charges_changed(flask.charges, flask.max_charges)
+
+
+func bind_player_interactor(interactor: Interactor) -> void:
+	player_interactor = interactor
+	interactor.focus_changed.connect(_on_interact_focus_changed)
+	_on_interact_focus_changed(interactor.focus)
+
+
+## "[F] Open chest" while something usable is in reach.
+func _on_interact_focus_changed(target: Node3D) -> void:
+	_interact_prompt.visible = target != null
+	if target:
+		_interact_prompt.text = "[F]  %s" % target.interact_prompt()
+
+
+func _on_flask_charges_changed(current: int, maximum: int) -> void:
+	_flask_label.text = "Flasks %d / %d   [R]" % [current, maximum]
+	_flask_label.modulate = Color.WHITE if current > 0 else Color(1, 1, 1, 0.45)
+
+
 func _on_player_stamina_changed(current: float, maximum: float) -> void:
 	_stamina_bar.max_value = maximum
 	_stamina_bar.value = current
@@ -63,6 +103,16 @@ func _on_player_health_changed(current: int, maximum: int) -> void:
 	_health_label.text = "HP %d / %d" % [current, maximum]
 	_defeated_label.visible = current <= 0
 	_restart_hint.visible = current <= 0
+
+
+func _on_gold_changed(total: int, delta: int) -> void:
+	_gold_label.text = "Gold %d" % total
+	if delta > 0:
+		# A little pulse on every coin.
+		_gold_label.pivot_offset = _gold_label.size * Vector2(0.0, 0.5)
+		var tween := create_tween()
+		_gold_label.scale = Vector2.ONE * 1.18
+		tween.tween_property(_gold_label, "scale", Vector2.ONE, 0.18)
 
 
 func _on_level_changed(level: int) -> void:

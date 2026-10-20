@@ -11,6 +11,8 @@ extends Resource
 @export var cost: int = 2
 ## First level it can appear on.
 @export var min_level: int = 1
+## What it drops on death (DropComponent; null = the scene's own table).
+@export var loot: LootTable
 
 @export_group("Elite")
 ## Multipliers on the scene's enemy (EnemyController): body and reach, health,

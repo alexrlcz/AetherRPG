@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Stick Swing"
+damage = 7
+stamina_cost = 10.0
+windup = 0.45
+strike_duration = 0.1
+recovery = 0.6
+animation = &"Sword_Attack"
+anim_strike_start = 0.37
+anim_strike_end = 0.5
+anim_recovery_end = 1.0
+knockback = 2.0
+hitstun = 0.2
+stagger = 6.0

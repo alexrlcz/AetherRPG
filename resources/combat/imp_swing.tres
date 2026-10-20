@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Mace Swing"
+damage = 13
+stamina_cost = 14.0
+windup = 0.55
+strike_duration = 0.12
+recovery = 0.75
+animation = &"Sword_Attack"
+anim_strike_start = 0.37
+anim_strike_end = 0.5
+anim_recovery_end = 1.0
+knockback = 3.5
+hitstun = 0.3
+stagger = 14.0

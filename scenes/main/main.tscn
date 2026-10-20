@@ -9,6 +9,8 @@
 [ext_resource type="PackedScene" path="res://scenes/debug/debug_menu.tscn" id="8_debug"]
 [ext_resource type="Script" uid="uid://plft8eekvbr8" path="res://scripts/combat/hitstop.gd" id="40_hitstop"]
 [ext_resource type="Script" path="res://scripts/ui/level_fade.gd" id="41_fade"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_imp.tscn" id="42_imp"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_puglin.tscn" id="43_puglin"]
 
 [node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player", "enemies", "fade", "hud")]
 script = ExtResource("6_main")
@@ -31,13 +33,16 @@ script = ExtResource("41_fade")
 [node name="IsoCameraRig" parent="." unique_id=2066421102 instance=ExtResource("3_camera")]
 target_path = NodePath("../Player")
 
-[node name="HUD" parent="." unique_id=228478913 node_paths=PackedStringArray("player_health", "player_stamina") instance=ExtResource("4_hud")]
+[node name="HUD" parent="." unique_id=228478913 node_paths=PackedStringArray("player_health", "player_stamina", "player_flask", "player_interactor") instance=ExtResource("4_hud")]
 player_health = NodePath("../Player/HealthComponent")
 player_stamina = NodePath("../Player/Stamina")
+player_flask = NodePath("../Player/Flask")
+player_interactor = NodePath("../Player/Interactor")
 
 [node name="EnemySpawner" type="Node" parent="." unique_id=2018847089 node_paths=PackedStringArray("container", "avoid")]
 script = ExtResource("7_spawner")
 enemy_scene = ExtResource("5_enemy")
+enemy_scenes = Array[PackedScene]([ExtResource("5_enemy"), ExtResource("42_imp"), ExtResource("43_puglin")])
 container = NodePath("../Enemies")
 avoid = NodePath("../Player")
 

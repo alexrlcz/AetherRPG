@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GearDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="1_gear"]
+[ext_resource type="PackedScene" path="res://assets/equipment/gear/cloak_poor.glb" id="2_model"]
+
+[resource]
+script = ExtResource("1_gear")
+id = &"cloak_poor"
+display_name = "Poor Man's Cloak"
+kind = 1
+auto_collect = false
+slot = 1
+model = ExtResource("2_model")
+anchor_bone = &"spine_03"
+fit = Transform3D(-0.0009, 0, 0, 0, 0.00134815, 7.06535e-05, 0, 4.71024e-05, -0.000898767, -0.018, -1.11248, -0.760303)
+rig = 2

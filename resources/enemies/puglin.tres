@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EnemyStats" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_stats.gd" id="1_stats"]
+
+[resource]
+script = ExtResource("1_stats")
+display_name = "Puglin"
+max_health = 26
+poise = 6.0
+knockback_scale = 1.4
+max_stamina = 40.0
+stamina_regen = 10.0
+move_speed = 4.6
+turn_speed = 14.0
+detection_radius = 8.0
+lose_interest_radius = 14.0

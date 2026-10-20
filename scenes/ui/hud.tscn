@@ -50,6 +50,18 @@ theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 22
 text = "Level 1"
 
+[node name="GoldLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 24.0
+offset_top = 46.0
+offset_right = 324.0
+offset_bottom = 74.0
+theme_override_colors/font_color = Color(1, 0.8, 0.3, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 20
+text = "Gold 0"
+
 [node name="BossPanel" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
 visible = false
@@ -84,10 +96,18 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 24.0
-offset_top = -100.0
+offset_top = -128.0
 offset_right = 324.0
 offset_bottom = -24.0
 grow_vertical = 0
+
+[node name="FlaskLabel" type="Label" parent="PlayerPanel"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(1, 0.72, 0.35, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 18
+text = "Flasks 3 / 3   [R]"
 
 [node name="HealthLabel" type="Label" parent="PlayerPanel"]
 unique_name_in_owner = true
@@ -112,6 +132,27 @@ theme_override_styles/background = SubResource("Style_bar_bg")
 theme_override_styles/fill = SubResource("Style_stamina_fill")
 value = 100.0
 show_percentage = false
+
+[node name="InteractPrompt" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -170.0
+offset_right = 200.0
+offset_bottom = -136.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 0.92, 0.7, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 22
+text = "[F]  Open chest"
+horizontal_alignment = 1
 
 [node name="DefeatedLabel" type="Label" parent="."]
 unique_name_in_owner = true

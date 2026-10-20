@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://resources/combat/puglin_swing.tres" id="2_swing"]
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Puglin Stick"
+hitbox_size = Vector3(0.16, 0.2, 0.5)
+hitbox_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024, 0.072, 0.17)
+enemy_attack = ExtResource("2_swing")
+enemy_attack_range = 1.25
