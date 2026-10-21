@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://yarf14mahxiu"
-path="res://.godot/imported/cloak_poor.glb-61ed26c60c09276032e578b69301a617.scn"
+uid="uid://4grdc2qejkjx"
+path="res://.godot/imported/Shield_Wooden.gltf-28e4f2d7dbfeafd43414bad369e9d4a1.scn"
 
 [deps]
 
-source_file="res://assets/equipment/gear/cloak_poor.glb"
-dest_files=["res://.godot/imported/cloak_poor.glb-61ed26c60c09276032e578b69301a617.scn"]
+source_file="res://assets/equipment/shield/Shield_Wooden.gltf"
+dest_files=["res://.godot/imported/Shield_Wooden.gltf-28e4f2d7dbfeafd43414bad369e9d4a1.scn"]
 
 [params]
 

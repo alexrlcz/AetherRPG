@@ -2,6 +2,13 @@
 
 [ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="1_gear"]
 [ext_resource type="PackedScene" path="res://assets/equipment/gear/helmet_fantasy.glb" id="2_model"]
+[ext_resource type="Script" path="res://scripts/stats/stat_modifier.gd" id="3_mod"]
+
+[sub_resource type="Resource" id="Mod_armor"]
+script = ExtResource("3_mod")
+stat = 4
+kind = 0
+value = 10.0
 
 [resource]
 script = ExtResource("1_gear")
@@ -16,3 +23,4 @@ fit = Transform3D(2.6, 0, 0, 0, 2.6, 0, 0, 0, 2.6, 0.0013, 0.0608, 0.0068)
 rig = 0
 hides_hair = true
 hides_parts = PackedStringArray("_Head_Hood")
+modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_armor")])

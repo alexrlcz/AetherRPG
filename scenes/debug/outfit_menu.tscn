@@ -3,8 +3,7 @@
 [ext_resource type="Script" path="res://scripts/debug/outfit_menu.gd" id="1_outfits"]
 [ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="2_gear"]
 [ext_resource type="Resource" path="res://resources/items/gear/helmet_fantasy.tres" id="3_helmet"]
-[ext_resource type="Resource" path="res://resources/items/gear/cloak_poor.tres" id="4_cloak"]
-[ext_resource type="Resource" path="res://resources/items/gear/boots_leather.tres" id="5_boots"]
+[ext_resource type="Resource" path="res://resources/items/gear/shield_wooden.tres" id="4_shield"]
 
 [sub_resource type="StyleBoxFlat" id="Style_panel"]
 bg_color = Color(0.08, 0.08, 0.1, 0.85)
@@ -33,7 +32,7 @@ offset_bottom = 200.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("Style_panel")
 script = ExtResource("1_outfits")
-gear_items = Array[ExtResource("2_gear")]([ExtResource("3_helmet"), ExtResource("4_cloak"), ExtResource("5_boots")])
+gear_items = Array[ExtResource("2_gear")]([ExtResource("3_helmet"), ExtResource("4_shield")])
 
 [node name="VBox" type="VBoxContainer" parent="."]
 theme_override_constants/separation = 6
@@ -90,6 +89,13 @@ size_flags_horizontal = 3
 text = "Feet"
 
 [node name="FeetOption" type="OptionButton" parent="VBox/Grid"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="OffHandLabel" type="Label" parent="VBox/Grid"]
+text = "Off hand"
+
+[node name="OffHandOption" type="OptionButton" parent="VBox/Grid"]
 unique_name_in_owner = true
 size_flags_horizontal = 3
 

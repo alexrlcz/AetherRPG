@@ -2,20 +2,17 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cac1itnlwghsa"
-path.s3tc="res://.godot/imported/boots_leather_2.png-984e686a9c43c0f35e2d5fb94c77a833.s3tc.ctex"
+uid="uid://bgjweqag8ilhk"
+path.s3tc="res://.godot/imported/T_Trim_Metal_Normal.png-55c67a3b6d80f7accea699836dfefcdb.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
-generator_parameters={
-"md5": "f2f34670d8b27cc54bbb2c44b67eda3c"
-}
 
 [deps]
 
-source_file="res://assets/equipment/gear/boots_leather_2.png"
-dest_files=["res://.godot/imported/boots_leather_2.png-984e686a9c43c0f35e2d5fb94c77a833.s3tc.ctex"]
+source_file="res://assets/equipment/shield/T_Trim_Metal_Normal.png"
+dest_files=["res://.godot/imported/T_Trim_Metal_Normal.png-55c67a3b6d80f7accea699836dfefcdb.s3tc.ctex"]
 
 [params]
 
@@ -30,7 +27,7 @@ compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=1
-roughness/src_normal="res://assets/equipment/gear/boots_leather_2.png"
+roughness/src_normal="res://assets/equipment/shield/T_Trim_Metal_Normal.png"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

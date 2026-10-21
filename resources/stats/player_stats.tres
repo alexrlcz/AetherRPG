@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="StatBlock" format=3]
+
+[ext_resource type="Script" path="res://scripts/stats/stat_block.gd" id="1_block"]
+
+[resource]
+script = ExtResource("1_block")
+max_health = 100
+max_stamina = 100.0
+stamina_regen = 30.0
+armor = 0.0

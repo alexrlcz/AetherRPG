@@ -2,20 +2,17 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d1tj17gk7x57u"
-path.s3tc="res://.godot/imported/boots_leather_1.png-748e6aed51650b23bc7d16aa1a0f921d.s3tc.ctex"
+uid="uid://bp8qi3477w0af"
+path.s3tc="res://.godot/imported/T_Trim_Metal_ORM.png-5cbbb1c000c91dd60b100d1a65261020.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
-generator_parameters={
-"md5": "751d47e97499bb42e06d47fbc42ccc7f"
-}
 
 [deps]
 
-source_file="res://assets/equipment/gear/boots_leather_1.png"
-dest_files=["res://.godot/imported/boots_leather_1.png-748e6aed51650b23bc7d16aa1a0f921d.s3tc.ctex"]
+source_file="res://assets/equipment/shield/T_Trim_Metal_ORM.png"
+dest_files=["res://.godot/imported/T_Trim_Metal_ORM.png-5cbbb1c000c91dd60b100d1a65261020.s3tc.ctex"]
 
 [params]
 

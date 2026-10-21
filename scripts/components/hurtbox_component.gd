@@ -11,10 +11,17 @@ signal hurt(amount: int, source: Node)
 signal hit_received(event: HitEvent)
 ## A hit arrived while `invulnerable` and was ignored (e.g. dodged).
 signal evaded(event: HitEvent)
+## A hit was stopped by `guard` (a raised shield).
+signal blocked(event: HitEvent)
 
 @export var health: HealthComponent
 ## While true every hit is ignored (dodge i-frames). Set by the owner.
 @export var invulnerable: bool = false
+## Optional: asked before each hit is applied; a blocked hit does nothing.
+@export var guard: BlockComponent
+## Fraction of each hit's damage removed (armor; set by CharacterStats). A
+## hit always does at least 1.
+@export_range(0.0, 1.0) var damage_reduction: float = 0.0
 
 ## The latest hit, set before damage is applied (read by `died` listeners
 ## such as the ragdoll).
@@ -42,6 +49,11 @@ func receive_event(event: HitEvent) -> void:
 	if invulnerable:
 		evaded.emit(event)
 		return
+	if guard and guard.try_block(event):
+		blocked.emit(event)
+		return
+	if damage_reduction > 0.0 and event.amount > 0:
+		event.amount = maxi(roundi(event.amount * (1.0 - damage_reduction)), 1)
 	last_hit = event
 	event.applied = health.take_damage(event.amount, event.source)
 	event.lethal = health.is_dead

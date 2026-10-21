@@ -233,6 +233,19 @@ func to_world(cell_point: Vector2, cell_size: float, y: float = 0.0) -> Vector3:
 	return Vector3(p.x, y, p.y)
 
 
+## The cell point at world position `world` (the inverse of to_world(),
+## ignoring height). The warp has no closed-form inverse; its slope is under
+## WARP_MAX_SLOPE, so a fixed-point iteration converges fast.
+func to_cell(world: Vector3, cell_size: float) -> Vector2:
+	var target := Vector2(world.x, world.z) / cell_size + origin
+	if curvature <= 0.0:
+		return target
+	var cell := target
+	for i in 8:
+		cell += target - warp(cell)
+	return cell
+
+
 ## Where the warp moves a cell point (cells). The identity at curvature 0.
 func warp(cell_point: Vector2) -> Vector2:
 	if curvature <= 0.0:
@@ -244,6 +257,17 @@ func warp(cell_point: Vector2) -> Vector2:
 			var dir: Vector2 = wave[0]
 			offset[axis] += wave[3] * sin(dir.dot(cell_point) * wave[1] + wave[2])
 	return cell_point + offset
+
+
+## The warp's sine waves, for code that evaluates warp() elsewhere (the fog
+## of war shader): per axis (x, then y), [dir: Vector2, wave number, phase,
+## amplitude]; offset[axis] = sum(amplitude * sin(dir . cell * k + phase)).
+## Empty at curvature 0.
+func warp_waves() -> Array:
+	if curvature <= 0.0:
+		return []
+	_ensure_warp()
+	return _warp_waves
 
 
 ## How far (radians, world yaw) the warp turns things at a cell point:

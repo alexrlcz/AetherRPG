@@ -2,20 +2,17 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://blxio6jqasi71"
-path.s3tc="res://.godot/imported/cloak_poor_0.png-15c15c2451d8f2a3c2b752ab032339c1.s3tc.ctex"
+uid="uid://dvw8w2chexikk"
+path.s3tc="res://.godot/imported/T_Trim_Furniture_Normal.png-bf910621119e37cf500b2291aa7dd9c9.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
-generator_parameters={
-"md5": "b6d81b360a5672d80c27430f39153e2c"
-}
 
 [deps]
 
-source_file="res://assets/equipment/gear/cloak_poor_0.png"
-dest_files=["res://.godot/imported/cloak_poor_0.png-15c15c2451d8f2a3c2b752ab032339c1.s3tc.ctex"]
+source_file="res://assets/equipment/shield/T_Trim_Furniture_Normal.png"
+dest_files=["res://.godot/imported/T_Trim_Furniture_Normal.png-bf910621119e37cf500b2291aa7dd9c9.s3tc.ctex"]
 
 [params]
 
@@ -25,12 +22,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://assets/equipment/shield/T_Trim_Furniture_Normal.png"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

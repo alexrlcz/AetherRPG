@@ -20,6 +20,8 @@ signal boss_spawned(boss: EnemyController, title: String)
 @export var fade: LevelFade
 ## Shows the boss health bar (optional).
 @export var hud: HUD
+## Fog of war over each level (optional).
+@export var fog: FogOfWar
 ## Build the run's current level on start (off for scenes that bring their
 ## own level).
 @export var start_run_on_ready: bool = true
@@ -120,6 +122,8 @@ func play_layout(new_layout: DungeonLayout) -> DungeonLayout:
 	if ticket != _generation:
 		return null  # A newer level took over while this one baked.
 	_spawn_enemies(new_layout)
+	if fog:
+		fog.setup(new_layout)
 	_connect_gate(level)
 	if boss:
 		if gate:

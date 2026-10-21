@@ -54,6 +54,11 @@ text = "Debug  (F1 to close)"
 unique_name_in_owner = true
 text = "Enemies alive: 0"
 
+[node name="PlayerStats" type="Label" parent="Panel/Scroll/VBox"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(0.75, 0.85, 1, 1)
+text = "Player stats"
+
 [node name="SpawnButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "Spawn enemy   [F2]"
@@ -65,6 +70,10 @@ text = "Heal player"
 [node name="GodModeCheck" type="CheckBox" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
 text = "God mode (player takes no damage)"
+
+[node name="FogCheck" type="CheckBox" parent="Panel/Scroll/VBox"]
+unique_name_in_owner = true
+text = "Fog of war"
 
 [node name="KillButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true

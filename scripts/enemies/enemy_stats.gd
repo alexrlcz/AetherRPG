@@ -1,22 +1,19 @@
 class_name EnemyStats
-extends Resource
-## Data describing one enemy type. Create a .tres per enemy type.
+extends StatBlock
+## Data describing one enemy type. Create a .tres per enemy type. The core
+## stats (max_health, max_stamina, stamina_regen, armor) come from StatBlock
+## and go through the enemy's CharacterStats (elite scaling is a modifier);
+## the rest is read by EnemyController. Attacks pay their
+## AttackProfile.stamina_cost from the stamina pool; an exhausted enemy holds
+## its ground until it recovers (a window to punish).
 
 @export var display_name: String = "Enemy"
 
 @export_group("Survival")
-@export var max_health: int = 60
 ## Poise damage absorbed during its own attacks before a hit interrupts them.
 @export var poise: float = 30.0
 ## Multiplier on knockback taken (heavier enemies < 1).
 @export var knockback_scale: float = 1.0
-
-@export_group("Stamina")
-## Attacks pay their AttackProfile.stamina_cost from this pool; an exhausted
-## enemy holds its ground until it recovers (a window to punish).
-@export var max_stamina: float = 60.0
-## Per second, after the StaminaComponent's regen_delay.
-@export var stamina_regen: float = 8.0
 
 @export_group("Movement")
 @export var move_speed: float = 3.5
@@ -38,3 +35,10 @@ extends Resource
 ## The attacks themselves (swing, range, dash) come from the enemy's weapon
 ## (WeaponDefinition).
 @export var dash_cooldown: float = 5.0
+
+
+func _init() -> void:
+	# Enemy defaults (StatBlock's are the player's); .tres values override them.
+	max_health = 60
+	max_stamina = 60.0
+	stamina_regen = 8.0

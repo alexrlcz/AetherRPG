@@ -23,6 +23,9 @@
 [ext_resource type="Script" path="res://scripts/components/stamina_component.gd" id="43_stamina"]
 [ext_resource type="Script" path="res://scripts/components/flask_component.gd" id="44_flask"]
 [ext_resource type="Script" path="res://scripts/components/interactor_component.gd" id="45_interactor"]
+[ext_resource type="Script" path="res://scripts/components/block_component.gd" id="46_block"]
+[ext_resource type="Script" path="res://scripts/stats/character_stats.gd" id="47_stats"]
+[ext_resource type="Resource" path="res://resources/stats/player_stats.tres" id="48_base"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -67,7 +70,7 @@ height = 0.03
 [sub_resource type="BoxShape3D" id="Shape_attack"]
 size = Vector3(0.25, 0.3, 0.9)
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee", "stamina", "flask", "interactor") groups=["player"]]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee", "stamina", "flask", "interactor", "block", "character_stats") groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_ctrl")
@@ -81,6 +84,8 @@ melee = NodePath("MeleeAttack")
 stamina = NodePath("Stamina")
 flask = NodePath("Flask")
 interactor = NodePath("Interactor")
+block = NodePath("Block")
+character_stats = NodePath("Stats")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -113,12 +118,13 @@ health = NodePath("../HealthComponent")
 animator = NodePath("../Animator")
 prop = NodePath("../Visual/Model/Armature/Skeleton3D/LeftHand/FlaskProp")
 
-[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health", "guard")]
 collision_layer = 8
 collision_mask = 0
 monitoring = false
 script = ExtResource("3_hurtbox")
 health = NodePath("../HealthComponent")
+guard = NodePath("../Block")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -166,6 +172,7 @@ body = NodePath("..")
 health = NodePath("../HealthComponent")
 animation_player = NodePath("../Visual/Model/AnimationPlayer")
 death_animation = &""
+guard_idle_animation = &"UAL2/Idle_Shield"
 idle_variants = Array[StringName]([&"Idle", &"Idle_Talking", &"Idle_Torch", &"UAL2/Idle_FoldArms", &"UAL2/Idle_Lantern", &"UAL2/Idle_No", &"UAL2/Idle_Rail", &"UAL2/Idle_Rail_Call", &"UAL2/Idle_Shield", &"UAL2/Idle_TalkingPhone"])
 
 [node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "stamina")]
@@ -225,6 +232,24 @@ color = Color(1, 0.3, 0.25, 1)
 script = ExtResource("24_appearance")
 appearance = ExtResource("25_look")
 skeleton = NodePath("../Visual/Model/Armature/Skeleton3D")
+
+[node name="Stats" type="Node" parent="." node_paths=PackedStringArray("health", "stamina", "melee", "hurtbox", "appearance")]
+script = ExtResource("47_stats")
+base = ExtResource("48_base")
+health = NodePath("../HealthComponent")
+stamina = NodePath("../Stamina")
+melee = NodePath("../MeleeAttack")
+hurtbox = NodePath("../Hurtbox")
+appearance = NodePath("../Appearance")
+
+[node name="Block" type="Node" parent="." node_paths=PackedStringArray("body", "appearance", "stamina", "animation_player", "skeleton", "numbers")]
+script = ExtResource("46_block")
+body = NodePath("..")
+appearance = NodePath("../Appearance")
+stamina = NodePath("../Stamina")
+animation_player = NodePath("../Visual/Model/AnimationPlayer")
+skeleton = NodePath("../Visual/Model/Armature/Skeleton3D")
+numbers = NodePath("../DamageNumbers")
 
 [node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "root")]
 script = ExtResource("22_flash")

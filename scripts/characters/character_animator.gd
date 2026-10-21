@@ -6,7 +6,8 @@ extends Node
 ## idle variants and death are automatic.
 ##
 ## Optional body properties it reads (via get(), so any body works):
-## `is_strafing` (directional cycles), `is_walking` (formal walk cycle).
+## `is_strafing` (directional cycles), `is_walking` (formal walk cycle),
+## `is_guarding` (shield raised: `guard_idle_animation` while standing).
 
 @export var body: CharacterBody3D
 @export var health: HealthComponent
@@ -22,6 +23,9 @@ extends Node
 ## is true (walk toggle). Empty = always `walk_animation`.
 @export var formal_walk_animation: StringName = &"Walk_Formal"
 @export var death_animation: StringName = &"Death01"
+## Idle while the body's `is_guarding` is true (shield raised). Empty = the
+## normal idle.
+@export var guard_idle_animation: StringName = &""
 
 @export_group("Tuning")
 ## Crossfade time into and out of one-shot actions (attacks).
@@ -139,7 +143,7 @@ func _ready() -> void:
 	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	# Not every locomotion animation is flagged as looping on import.
 	var loops: Array[StringName] = [idle_animation, walk_animation, run_animation,
-		sprint_animation, formal_walk_animation, air_animation]
+		sprint_animation, formal_walk_animation, air_animation, guard_idle_animation]
 	loops.append_array(idle_variants)
 	for anim_name in loops:
 		if anim_name == &"":
@@ -300,6 +304,11 @@ func is_airborne() -> bool:
 
 ## Base idle, with a random variant now and then.
 func _play_idle(delta: float) -> void:
+	if guard_idle_animation != &"" and body.get(&"is_guarding") == true:
+		_idle_time = 0.0
+		_variant = &""
+		_play(guard_idle_animation, 1.0)
+		return
 	if idle_variants.is_empty() or body.get(&"is_strafing") == true:
 		_idle_time = 0.0
 		_variant = &""

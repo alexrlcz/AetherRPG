@@ -11,7 +11,10 @@ extends CharacterBody3D
 ## holds its ground facing the target until it recovers.
 ##
 ## Targets the first node in the "player" group. Movement uses a
-## NavigationAgent3D on the baked navigation mesh. Numbers come from `stats`.
+## NavigationAgent3D on the baked navigation mesh. Numbers come from `stats`;
+## its core stats (health, stamina, armor) go through `character_stats`,
+## which also carries the elite multipliers (source &"elite") and scales
+## `stats.move_speed` by MOVE_SPEED.
 
 signal state_changed(new_state: State)
 
@@ -29,6 +32,8 @@ enum State { IDLE, CHASE, ATTACK, STAGGER, DEAD }
 @export var reaction: HitReactionComponent
 ## Optional: pays for attacks (shared with `melee`); sized from `stats`.
 @export var stamina: StaminaComponent
+## Final core stats from `stats` plus modifiers.
+@export var character_stats: CharacterStats
 
 @export_group("Navigation")
 ## How often the chase path is recomputed.
@@ -47,8 +52,8 @@ enum State { IDLE, CHASE, ATTACK, STAGGER, DEAD }
 @export_group("Elite")
 ## Multipliers for elites and bosses, set before the enemy enters the tree
 ## (Main copies them from its EnemyEntry). size_scale grows the model, body,
-## hurtbox, reach and awareness; the others scale health, attack damage and
-## poise.
+## hurtbox, reach and awareness; health and damage become MULTIPLY modifiers
+## on `character_stats`; poise_scale scales poise.
 @export var size_scale: float = 1.0
 @export var health_scale: float = 1.0
 @export var damage_scale: float = 1.0
@@ -75,10 +80,12 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 func _ready() -> void:
 	_apply_elite()
-	health.max_health = stats.max_health
-	if stamina:
-		stamina.max_stamina = stats.max_stamina
-		stamina.regen_rate = stats.stamina_regen
+	character_stats.set_base(stats)
+	if is_elite():
+		character_stats.set_modifiers(&"elite", [
+			StatModifier.make(CharacterStats.Stat.MAX_HEALTH, StatModifier.Kind.MULTIPLY, health_scale),
+			StatModifier.make(CharacterStats.Stat.DAMAGE, StatModifier.Kind.MULTIPLY, damage_scale),
+		])
 	health.died.connect(_on_died)
 	health.damaged.connect(_on_damaged)
 	if weapon:
@@ -219,12 +226,10 @@ func _apply_elite() -> void:
 	if not is_elite():
 		return
 	stats = stats.duplicate()
-	stats.max_health = roundi(stats.max_health * health_scale)
 	stats.poise *= poise_scale
 	stats.knockback_scale /= size_scale
 	stats.detection_radius *= size_scale
 	stats.lose_interest_radius *= size_scale
-	melee.damage_scale = damage_scale
 	eye_height *= size_scale
 	var visual := get_node_or_null(^"Visual") as Node3D
 	if visual:
@@ -280,8 +285,9 @@ func _next_path_direction() -> Vector3:
 
 
 func _apply_movement(move_dir: Vector3, delta: float) -> void:
-	velocity.x = move_dir.x * stats.move_speed
-	velocity.z = move_dir.z * stats.move_speed
+	var speed := stats.move_speed * character_stats.get_value(CharacterStats.Stat.MOVE_SPEED)
+	velocity.x = move_dir.x * speed
+	velocity.z = move_dir.z * speed
 	if reaction and state != State.DEAD:
 		# Knockback (also the small push of a flinch) rides on top.
 		velocity.x += reaction.knockback_velocity.x

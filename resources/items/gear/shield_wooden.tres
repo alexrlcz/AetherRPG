@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ShieldDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/shield_definition.gd" id="1_shield"]
+[ext_resource type="PackedScene" path="res://assets/equipment/shield/Shield_Wooden.gltf" id="2_model"]
+[ext_resource type="Script" path="res://scripts/stats/stat_modifier.gd" id="3_mod"]
+
+[sub_resource type="Resource" id="Mod_armor"]
+script = ExtResource("3_mod")
+stat = 4
+kind = 0
+value = 5.0
+
+[resource]
+script = ExtResource("1_shield")
+id = &"shield_wooden"
+display_name = "Wooden Shield"
+kind = 1
+auto_collect = false
+slot = 3
+model = ExtResource("2_model")
+anchor_bone = &"hand_l"
+fit = Transform3D(-0.1158, -0.0153, -0.9932, -0.9931, 0.0195, 0.1155, 0.0176, 0.9997, -0.0174, 0.0028, 0.0693, 0.0091)
+fit_in_bone_space = true
+modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_armor")])

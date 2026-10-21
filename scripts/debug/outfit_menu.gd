@@ -2,7 +2,7 @@ class_name OutfitMenu
 extends PanelContainer
 ## Debug panel for dressing the player (opened from DebugMenu's "Outfits..."
 ## button): outfit, colour variant, hood and pauldrons, and the gear worn in
-## each slot (helmet, cloak, boots from `gear_items`), previewed live. Edits
+## each slot (helmet, cloak, boots, shield from `gear_items`), previewed live. Edits
 ## the appearance the AppearanceComponent holds (DebugMenu's copy; nothing
 ## is saved).
 
@@ -22,6 +22,7 @@ signal closed
 	GearDefinition.Slot.HEAD: %HeadOption as OptionButton,
 	GearDefinition.Slot.BACK: %BackOption as OptionButton,
 	GearDefinition.Slot.FEET: %FeetOption as OptionButton,
+	GearDefinition.Slot.OFF_HAND: %OffHandOption as OptionButton,
 }
 
 

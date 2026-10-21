@@ -1,6 +1,7 @@
 extends "res://tests/combat_test.gd"
 ## Headless camera checks: the overview-to-third-person zoom blend, wheel
-## zoom, middle-mouse orbit, input that follows the rotated camera, mouse aim
+## zoom, middle-mouse orbit, free look (orbit and tilt, only while standing,
+## eased back on moving), input that follows the rotated camera, mouse aim
 ## through the perspective camera, and the wall cutout (reuses the combat
 ## test's arena and helpers).
 ##   godot --headless --path . -s res://tests/camera_test.gd
@@ -12,6 +13,7 @@ func _initialize() -> void:
 	await test_zoom_blend()
 	await test_wheel_zoom()
 	await test_orbit()
+	await test_free_look()
 	await test_input_follows_camera()
 	await test_mouse_aim()
 	await test_wall_cutout()
@@ -90,14 +92,14 @@ func test_orbit() -> void:
 	var player := spawn_player(Vector3.ZERO)
 	var rig := camera_rig
 	await ticks(2)
-	var start_yaw := rig.yaw_degrees
+	var start_yaw := rig.get_yaw()
 	_motion(Vector2(100, 0))
 	await ticks(1)
-	check(rig.yaw_degrees == start_yaw, "moving the mouse alone doesn't rotate")
+	check(rig.get_yaw() == start_yaw, "moving the mouse alone doesn't rotate")
 	_button(MOUSE_BUTTON_MIDDLE, true)
 	_motion(Vector2(100, 0))
 	await ticks(1)
-	var turned := rig.yaw_degrees - start_yaw
+	var turned := rig.get_yaw() - start_yaw
 	check(absf(turned + 100.0 * rig.rotate_sensitivity) < 0.01, "dragging turns the yaw (%.1f°)" % turned)
 	var flat_distance := flat(rig.camera.global_position - player.global_position).length()
 	_motion(Vector2(-300, 0))
@@ -105,11 +107,79 @@ func test_orbit() -> void:
 	check(absf(flat(rig.camera.global_position - player.global_position).length() - flat_distance) < 0.05,
 		"orbits at a constant distance")
 	_button(MOUSE_BUTTON_MIDDLE, false)
-	var released_yaw := rig.yaw_degrees
+	var released_yaw := rig.get_yaw()
 	_motion(Vector2(100, 0))
 	await ticks(1)
-	check(rig.yaw_degrees == released_yaw, "releasing stops the rotation")
+	check(rig.get_yaw() == released_yaw, "releasing stops the rotation")
+	check(rig.yaw_degrees == start_yaw, "the default yaw is unchanged (free look is an offset)")
 	check(not player.lock_on.is_locked(), "middle mouse no longer locks on")
+	await clear_arena()
+
+
+func test_free_look() -> void:
+	print("3b. Free look only while standing; moving eases back to the default view")
+	await make_arena()
+	var player := spawn_player(Vector3.ZERO)
+	var rig := camera_rig
+	rig.set_zoom(0.3, true)
+	await ticks(2)
+	var default_pitch := rig.get_pitch_degrees()
+	_button(MOUSE_BUTTON_MIDDLE, true)
+	_motion(Vector2(0, 50))
+	await ticks(1)
+	check(absf(rig.get_tilt() - 50.0 * rig.tilt_sensitivity) < 0.01
+		and rig.get_pitch_degrees() > default_pitch, "dragging down tilts toward top-down (%.1f°)" % rig.get_tilt())
+	_motion(Vector2(120, 0))
+	await ticks(1)
+	check(rig.get_yaw() != rig.yaw_degrees and rig.is_free_looking(), "rotated and tilted")
+	var view_forward := -rig.get_movement_basis().z
+	var zoom_before := rig.get_zoom_goal()
+	# Moving: W goes up the view as it is now; no more free look; it eases back.
+	Input.action_press("move_forward")
+	await ticks(3)
+	var walking := Vector3(player.velocity.x, 0.0, player.velocity.z).normalized()
+	check(walking.dot(view_forward) > 0.95, "W walks up the rotated view (dot %.2f)" % walking.dot(view_forward))
+	await ticks(5)
+	var yaw_mid := rig.get_yaw()
+	_motion(Vector2(200, 0))
+	await ticks(1)
+	check(rig.is_returning(), "moving starts the return")
+	check(absf(rig.get_yaw() - yaw_mid) < 5.0, "dragging while moving doesn't rotate")
+	_button(MOUSE_BUTTON_MIDDLE, false)
+	var samples: Array[float] = []
+	for i in 60:
+		await physics_frame
+		samples.append(absf(wrapf(rig.get_yaw() - rig.yaw_degrees, -180.0, 180.0)))
+		if not rig.is_returning():
+			break
+	check(not rig.is_returning() and not rig.is_free_looking(), "back to the default view")
+	check(rig.get_yaw() == rig.yaw_degrees and rig.get_tilt() == 0.0, "yaw %.0f°, no tilt" % rig.get_yaw())
+	var smooth := true
+	for i in range(1, samples.size()):
+		smooth = smooth and samples[i] <= samples[i - 1] + 0.0001
+	check(smooth and samples.size() >= int(rig.return_time * 60.0) - 12, "it glides back over ~%.1f s, never jumping"
+		% (samples.size() / 60.0))
+	# Ease in and out: slow at the start and the end, fastest in the middle.
+	var steps: Array[float] = []
+	for i in range(1, samples.size()):
+		steps.append(samples[i - 1] - samples[i])
+	var middle := steps[steps.size() / 2]
+	check(steps[0] < middle * 0.5 and steps[steps.size() - 1] < middle * 0.5,
+		"eases in and out (first step %.2f°, middle %.2f°, last %.2f°)" % [steps[0], middle, steps[steps.size() - 1]])
+	check(rig.get_zoom_goal() == zoom_before, "the zoom is kept")
+	Input.action_release("move_forward")
+	await ticks(30)
+	_button(MOUSE_BUTTON_MIDDLE, true)
+	_motion(Vector2(50, 0))
+	await ticks(1)
+	_button(MOUSE_BUTTON_MIDDLE, false)
+	check(rig.is_free_looking(), "standing again: free look works")
+	var zoomed := rig.get_zoom_goal()
+	Input.action_press("move_forward")
+	await ticks(2)
+	rig.set_zoom(zoomed + 0.1)
+	check(rig.get_zoom_goal() > zoomed, "zoom still works while moving")
+	Input.action_release("move_forward")
 	await clear_arena()
 
 

@@ -3,6 +3,8 @@ extends CanvasLayer
 ## Developer tools, only present in debug builds (removed from release exports).
 ## F1 toggles the panel; F2 spawns an enemy at a random walkable point.
 ## "God mode" makes the player take no damage (HealthComponent.god_mode).
+## The player's final core stats (CharacterStats) are listed at the top.
+## "Fog of war" turns the level's FogOfWar on and off.
 ## The panel also edits the player's appearance and weapon live (not saved),
 ## opens the Outfits panel (OutfitMenu) to dress the player,
 ## generates levels from a seed (Main.generate_level()) and plays the
@@ -10,6 +12,10 @@ extends CanvasLayer
 
 @export var spawner: EnemySpawner
 @export var player_health: HealthComponent
+## Shown in the stats readout (optional).
+@export var player_stats: CharacterStats
+## Toggled by the "Fog of war" checkbox (optional).
+@export var fog: FogOfWar
 ## Node whose children are the enemies (counted / killed by the buttons).
 @export var enemies: Node
 ## Edited by the appearance controls; works on a copy of its resource.
@@ -24,6 +30,7 @@ extends CanvasLayer
 @onready var _panel: Control = %Panel
 @onready var _scroll: ScrollContainer = $Panel/Scroll
 @onready var _count_label: Label = %EnemyCount
+@onready var _stats_label: Label = %PlayerStats
 @onready var _outfit_menu: OutfitMenu = $OutfitMenu
 
 
@@ -37,6 +44,9 @@ func _ready() -> void:
 	%GodModeCheck.set_pressed_no_signal(player_health.god_mode)
 	%GodModeCheck.toggled.connect(set_god_mode)
 	%KillButton.pressed.connect(kill_all_enemies)
+	%FogCheck.disabled = fog == null
+	%FogCheck.set_pressed_no_signal(fog != null and fog.enabled)
+	%FogCheck.toggled.connect(set_fog)
 	_setup_appearance_controls()
 	_outfit_menu.appearance_component = player_appearance
 	%OutfitsButton.pressed.connect(_toggle_outfits)
@@ -66,6 +76,23 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(_delta: float) -> void:
 	if _panel.visible:
 		_count_label.text = "Enemies alive: %d" % _alive_enemies().size()
+		_stats_label.text = stats_text(player_stats)
+
+
+## Readout of a character's final core stats.
+static func stats_text(stats: CharacterStats) -> String:
+	if stats == null:
+		return "Player stats: -"
+	var armor := stats.get_value(CharacterStats.Stat.ARMOR)
+	return "HP %d   Stamina %d (+%d/s)
+Damage x%.2f   Speed x%.2f
+Armor %d (-%d%% damage)" % [
+		roundi(stats.get_value(CharacterStats.Stat.MAX_HEALTH)),
+		roundi(stats.get_value(CharacterStats.Stat.MAX_STAMINA)),
+		roundi(stats.get_value(CharacterStats.Stat.STAMINA_REGEN)),
+		stats.get_value(CharacterStats.Stat.DAMAGE),
+		stats.get_value(CharacterStats.Stat.MOVE_SPEED),
+		roundi(armor), roundi(CharacterStats.armor_reduction(armor) * 100.0)]
 
 
 ## Caps the panel's height to the window (its rows scroll past that).
@@ -99,6 +126,12 @@ func heal_player() -> void:
 func set_god_mode(on: bool) -> void:
 	player_health.god_mode = on
 	%GodModeCheck.set_pressed_no_signal(on)
+
+
+func set_fog(on: bool) -> void:
+	if fog:
+		fog.enabled = on
+	%FogCheck.set_pressed_no_signal(on)
 
 
 func kill_all_enemies() -> void:

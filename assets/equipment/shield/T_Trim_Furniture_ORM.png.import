@@ -2,20 +2,17 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cdr0tob6dusid"
-path.s3tc="res://.godot/imported/cloak_poor_1.png-577041da94d7ccc8174858ea6e0893db.s3tc.ctex"
+uid="uid://bixevsavc4ios"
+path.s3tc="res://.godot/imported/T_Trim_Furniture_ORM.png-0d986defa51cedb546eab67669dc59c2.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
-generator_parameters={
-"md5": "3d8dae67e18534d65137e31ad67508fb"
-}
 
 [deps]
 
-source_file="res://assets/equipment/gear/cloak_poor_1.png"
-dest_files=["res://.godot/imported/cloak_poor_1.png-577041da94d7ccc8174858ea6e0893db.s3tc.ctex"]
+source_file="res://assets/equipment/shield/T_Trim_Furniture_ORM.png"
+dest_files=["res://.godot/imported/T_Trim_Furniture_ORM.png-0d986defa51cedb546eab67669dc59c2.s3tc.ctex"]
 
 [params]
 

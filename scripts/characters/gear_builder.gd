@@ -181,7 +181,10 @@ static func _placement(gear: GearDefinition, skeleton: Skeleton3D, mirrored: boo
 	var anchor_name := String(gear.anchor_bone)
 	if mirrored:
 		anchor_name = anchor_name.replace("_r", "_l")
-	var anchor := skeleton.get_bone_global_rest(skeleton.find_bone(anchor_name)).origin
+	var rest := skeleton.get_bone_global_rest(skeleton.find_bone(anchor_name))
+	if gear.fit_in_bone_space:
+		return Transform3D(rest.basis.orthonormalized(), rest.origin) * gear.fit
+	var anchor := rest.origin
 	var fit := gear.fit
 	if mirrored:
 		fit = Transform3D(Basis.from_scale(Vector3(-1, 1, 1)), Vector3.ZERO) * fit

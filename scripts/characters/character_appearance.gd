@@ -65,7 +65,7 @@ const OUTFIT_PIECES := {
 @export var pauldrons: bool = true
 
 @export_group("Gear")
-## Worn gear, at most one per GearDefinition.Slot (helmet, cloak, boots).
+## Worn gear, at most one per GearDefinition.Slot (helmet, cloak, boots, shield).
 @export var gear: Array[GearDefinition] = []
 
 

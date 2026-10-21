@@ -2,7 +2,8 @@ class_name PlayerController
 extends CharacterBody3D
 ## Player movement and input: WASD locomotion, mouse aiming, melee attacks.
 ##
-## WASD is always screen-relative (W = up the screen).
+## WASD is always screen-relative (W = up the screen, the camera rig's view
+## now: IsoCameraRig.get_movement_basis()).
 ## - Not aiming: the character turns to face its movement direction.
 ## - Holding "aim" (right mouse): the character keeps facing the mouse cursor
 ##   while moving, so it can walk backwards or strafe.
@@ -47,6 +48,12 @@ extends CharacterBody3D
 ##   the floor: the character stands still for the drink (no attacks, rolls,
 ##   jumps or sprint; their presses stay buffered); a staggering hit or death
 ##   cuts it short.
+## - With a shield worn (`block`), holding "aim" (right mouse) also raises it
+##   while free to act: the character moves and faces the cursor as when
+##   aiming (or the locked target), the shield arm stays up over the
+##   locomotion, and hits from the front are blocked for stamina
+##   (BlockComponent). Raising it ends a sprint; attacking, rolling,
+##   drinking or a stagger lower it until they are over.
 ## - "interact" (F) uses what `interactor` has in focus (the nearest chest,
 ##   later gear on the floor, within reach): the character turns to it and
 ##   is committed for the interaction's animation like a drink.
@@ -125,6 +132,10 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 @export var flask: FlaskComponent
 ## Uses chests (and later gear) with "interact" (optional).
 @export var interactor: Interactor
+## Raises a worn shield while "aim" is held (optional).
+@export var block: BlockComponent
+## Its MOVE_SPEED multiplies every top speed (optional).
+@export var character_stats: CharacterStats
 
 var is_aiming: bool = false
 ## Facing is decoupled from movement (aiming or locked on, not sprinting); the
@@ -132,6 +143,10 @@ var is_aiming: bool = false
 var is_strafing: bool:
 	get:
 		return (is_aiming or is_locked_on()) and not is_sprinting
+## The shield is raised (the animator plays the guard idle).
+var is_guarding: bool:
+	get:
+		return block != null and block.is_guarding()
 ## Sprint toggle on while moving and free to move.
 var is_sprinting: bool = false
 ## Sprint toggle ("sprint", Left Alt); on until pressed again, or broken by
@@ -207,6 +222,9 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var move_dir := _camera_relative_direction(input)
 	var grounded := is_on_floor()
+	var guard_held := is_aiming and block != null and block.has_shield()
+	if guard_held and sprint_toggled:
+		_stop_sprint()  # Raising the shield ends the sprint.
 	if is_sprinting and move_dir == Vector3.ZERO:
 		_stop_sprint()  # Let go of the direction keys: the sprint ends.
 	var sprint_held := sprint_toggled and move_dir != Vector3.ZERO \
@@ -217,7 +235,7 @@ func _physics_process(delta: float) -> void:
 	if melee and not reacting and not dodging and grounded and not occupied:
 		if move_dir != Vector3.ZERO and _buffered == AttackInput.NONE and melee.can_move_cancel():
 			melee.end_recovery()
-		var at_sprint_speed := Vector2(velocity.x, velocity.z).length() > move_speed + 0.5
+		var at_sprint_speed := Vector2(velocity.x, velocity.z).length() > _speed_scale() * move_speed + 0.5
 		_update_attacks(sprint_held and at_sprint_speed)
 	var attacking := melee != null and melee.is_busy()
 	var winding_up := attacking and melee.phase == MeleeAttackComponent.Phase.WINDUP
@@ -241,6 +259,8 @@ func _physics_process(delta: float) -> void:
 				facing_direction = to_target.normalized()
 				rotation.y = atan2(-facing_direction.x, -facing_direction.z)  # Face what it uses.
 	is_sprinting = sprint_held and not attacking and not reacting and not dodging and not occupied
+	if block:
+		block.raised = guard_held and not attacking and not reacting and not dodging and not occupied
 	if is_sprinting and stamina:
 		stamina.drain(sprint_stamina_per_second * delta)
 
@@ -519,6 +539,8 @@ func _on_died() -> void:
 	if interactor:
 		interactor.cancel()
 		interactor.enabled = false
+	if block:
+		block.raised = false
 	# The body stays as an anchor but no longer blocks enemies.
 	collision_layer = 0
 	if melee:
@@ -580,8 +602,15 @@ func get_aim_direction_at(screen_pos: Vector2) -> Vector3:
 
 
 func _camera_relative_direction(input: Vector2) -> Vector3:
+	if input == Vector2.ZERO:
+		return Vector3.ZERO
+	# The rig's yaw (its free look included), not the camera's tilted basis.
+	var rig := get_tree().get_first_node_in_group(IsoCameraRig.GROUP) as IsoCameraRig
+	if rig:
+		var basis := rig.get_movement_basis()
+		return basis.x * input.x + -basis.z * -input.y
 	var camera := get_viewport().get_camera_3d()
-	if not camera or input == Vector2.ZERO:
+	if not camera:
 		return Vector3.ZERO
 	var forward := -camera.global_basis.z
 	forward.y = 0.0
@@ -630,12 +659,18 @@ func _apply_movement(move_dir: Vector3, delta: float) -> void:
 		velocity.y -= _gravity * air_gravity_multiplier * delta
 
 
+## MOVE_SPEED from `character_stats` (1 without).
+func _speed_scale() -> float:
+	return character_stats.get_value(CharacterStats.Stat.MOVE_SPEED) if character_stats else 1.0
+
+
 func _top_speed() -> float:
+	var scale := _speed_scale()
 	if is_sprinting:
-		return sprint_speed
+		return sprint_speed * scale
 	if is_walking:
-		return walk_speed
-	return move_speed
+		return walk_speed * scale
+	return move_speed * scale
 
 
 ## Speed multiplier for moving along `move_dir` while facing `facing_direction`.

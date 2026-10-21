@@ -14,8 +14,14 @@ extends Node3D
 ##   `close_distance`, the field of view widens, the pitch flattens to
 ##   `close_pitch_degrees` and the look point rises to the character's chest,
 ##   so at full zoom it is a third-person camera behind the character.
-## The mouse wheel steps the zoom (smoothed); dragging with "camera_rotate"
-## (middle mouse) held orbits the yaw.
+## The mouse wheel steps the zoom (smoothed) at any time.
+##
+## Free look, only while the target stands still (horizontal speed under
+## `free_look_max_speed`): dragging with "camera_rotate" (middle mouse) held
+## orbits (sideways) and tilts (up / down). As soon as the target moves, the
+## view eases back (ease in, ease out over `return_time`) to the default:
+## `yaw_degrees` (isometric) and the zoom's own pitch. Only the zoom stays
+## as it was.
 ##
 ## Every frame the rig also sets the global shader parameters `cutout_camera`,
 ## `cutout_target`, `cutout_radius`, `cutout_front_width` and
@@ -29,9 +35,22 @@ extends Node3D
 ## Higher values follow more tightly. 0 disables smoothing.
 @export var follow_smoothing: float = 10.0
 
-@export_group("Rotation")
+@export_group("Free Look")
 ## Yaw degrees per pixel of mouse movement while "camera_rotate" is held.
 @export var rotate_sensitivity: float = 0.3
+## Pitch degrees per pixel of vertical mouse movement (dragging down tilts
+## toward top-down).
+@export var tilt_sensitivity: float = 0.2
+## Tilt range (degrees) around the zoom's own pitch, and the final pitch's
+## limits.
+@export var min_tilt: float = -25.0
+@export var max_tilt: float = 35.0
+@export var pitch_limits: Vector2 = Vector2(5.0, 85.0)
+## Free look only works below this target speed (m/s); above it the view
+## returns to the default.
+@export var free_look_max_speed: float = 0.25
+## Seconds to ease back to the default view once the target moves.
+@export var return_time: float = 0.7
 
 @export_group("Zoom")
 ## 0 = furthest overview, 1 = closest third-person view.
@@ -48,7 +67,7 @@ extends Node3D
 ## Narrow field of view, so the overview has little perspective distortion.
 @export_range(1.0, 90.0) var overview_fov: float = 25.0
 ## Visible height (m) at the target at zoom 0 and at `overview_zoom_end`.
-@export var max_view_height: float = 30.0
+@export var max_view_height: float = 20.0
 @export var min_view_height: float = 10.0
 
 @export_group("Close-up")
@@ -101,6 +120,12 @@ var _target: Node3D
 var _follow_position: Vector3
 var _zoom_goal: float
 var _rotating: bool = false
+## Free look on top of the default view.
+var _yaw_offset: float = 0.0
+var _tilt: float = 0.0
+## Easing back: progress 0..1 (< 0 = not returning) and where it started.
+var _return_progress: float = -1.0
+var _return_from: Array = [0.0, 0.0]
 var _trauma: float = 0.0
 var _punch_dir: Vector2 = Vector2.ZERO
 var _shake_time: float = 0.0
@@ -151,9 +176,50 @@ func get_zoom_goal() -> float:
 	return _zoom_goal
 
 
-## Turns the camera to `degrees` of yaw around the target.
+## Sets the default yaw (`degrees` around the target) and drops any free
+## look.
 func set_yaw(degrees: float) -> void:
 	yaw_degrees = wrapf(degrees, -180.0, 180.0)
+	reset_free_look()
+
+
+## The yaw the camera has now: the default plus any free look.
+func get_yaw() -> float:
+	return wrapf(yaw_degrees + _yaw_offset, -180.0, 180.0)
+
+
+## Horizontal axes WASD moves along: the view's yaw now (free look
+## included), so W is always up the screen; while the view eases back to the
+## default the walking direction turns with it. x = screen right, -z =
+## screen up.
+func get_movement_basis() -> Basis:
+	return Basis.from_euler(Vector3(0.0, deg_to_rad(get_yaw()), 0.0))
+
+
+## Free-look tilt (degrees) on top of the zoom's pitch.
+func get_tilt() -> float:
+	return _tilt
+
+
+## True while the view differs from the default (or is easing back to it).
+func is_free_looking() -> bool:
+	return _yaw_offset != 0.0 or _tilt != 0.0
+
+
+func is_returning() -> bool:
+	return _return_progress >= 0.0
+
+
+## Free look is allowed now: the target stands still.
+func can_free_look() -> bool:
+	return _target_speed() < free_look_max_speed
+
+
+## Back to the default view at once.
+func reset_free_look() -> void:
+	_yaw_offset = 0.0
+	_tilt = 0.0
+	_return_progress = -1.0
 	_apply_view()
 
 
@@ -165,7 +231,8 @@ func get_close_blend() -> float:
 
 
 func get_pitch_degrees() -> float:
-	return lerpf(overview_pitch_degrees, close_pitch_degrees, get_close_blend())
+	var pitch := lerpf(overview_pitch_degrees, close_pitch_degrees, get_close_blend()) + _tilt
+	return clampf(pitch, pitch_limits.x, pitch_limits.y) if _tilt != 0.0 else pitch
 
 
 func get_fov() -> float:
@@ -202,6 +269,7 @@ func _physics_process(delta: float) -> void:
 			_follow_position = goal
 		else:
 			_follow_position = _follow_position.lerp(goal, 1.0 - exp(-follow_smoothing * delta))
+	_update_return(delta)
 	if zoom_smoothing <= 0.0:
 		zoom = _zoom_goal
 	else:
@@ -215,7 +283,7 @@ func _apply_view() -> void:
 	if not is_node_ready():
 		return
 	global_position = _follow_position + Vector3.UP * get_look_height()
-	rotation = Vector3(deg_to_rad(-get_pitch_degrees()), deg_to_rad(yaw_degrees), 0.0)
+	rotation = Vector3(deg_to_rad(-get_pitch_degrees()), deg_to_rad(get_yaw()), 0.0)
 	var distance := get_distance()
 	camera.position = Vector3(0.0, 0.0, distance)
 	camera.fov = get_fov()
@@ -261,9 +329,44 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_zoom(_zoom_goal - zoom_step)
 	elif event.is_action_pressed("camera_rotate"):
 		_rotating = true
-	elif event is InputEventMouseMotion and _rotating:
-		# screen_relative: physical pixels, so the turn rate ignores window stretch.
-		set_yaw(yaw_degrees - (event as InputEventMouseMotion).screen_relative.x * rotate_sensitivity)
+	elif event is InputEventMouseMotion and _rotating and can_free_look():
+		# screen_relative: physical pixels, so the rates ignore window stretch.
+		var moved := (event as InputEventMouseMotion).screen_relative
+		_return_progress = -1.0  # Standing still and dragging: stop easing back.
+		_yaw_offset -= moved.x * rotate_sensitivity
+		_tilt = clampf(_tilt + moved.y * tilt_sensitivity, min_tilt, max_tilt)
+		_apply_view()
+
+
+## Starts easing back to the default view when the target moves, and runs
+## the ease (in and out).
+func _update_return(delta: float) -> void:
+	if not is_returning():
+		if is_free_looking() and not can_free_look():
+			_return_progress = 0.0
+			_return_from = [_yaw_offset, _tilt]
+		else:
+			return
+	_return_progress = minf(_return_progress + delta / maxf(return_time, 0.001), 1.0)
+	var t := _return_progress
+	var eased := 4.0 * t * t * t if t < 0.5 else 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0
+	var keep := 1.0 - eased
+	# Turn back the short way round.
+	_yaw_offset = wrapf(_return_from[0], -180.0, 180.0) * keep
+	_tilt = _return_from[1] * keep
+	if _return_progress >= 1.0:
+		_yaw_offset = 0.0
+		_tilt = 0.0
+		_return_progress = -1.0
+
+
+func _target_speed() -> float:
+	if _target == null:
+		return 0.0
+	var velocity: Variant = _target.get(&"velocity")
+	if velocity is Vector3:
+		return Vector2(velocity.x, velocity.z).length()
+	return 0.0
 
 
 func _input(event: InputEvent) -> void:

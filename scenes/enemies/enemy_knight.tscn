@@ -26,6 +26,7 @@
 [ext_resource type="Script" path="res://scripts/ui/world_stamina_bar.gd" id="33_stamina_bar"]
 [ext_resource type="Script" path="res://scripts/items/drop_component.gd" id="34_drops"]
 [ext_resource type="Resource" path="res://resources/loot/club_knight.tres" id="35_loot"]
+[ext_resource type="Script" path="res://scripts/stats/character_stats.gd" id="36_stats"]
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.4
@@ -51,7 +52,7 @@ shader_parameter/fill_color = Color(0.95, 0.78, 0.2, 1)
 material = SubResource("Mat_stamina_bar")
 size = Vector2(1.0, 0.07)
 
-[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "weapon", "reaction", "stamina") groups=["enemies"]]
+[node name="EnemyKnight" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "weapon", "reaction", "stamina", "character_stats") groups=["enemies"]]
 collision_layer = 4
 collision_mask = 3
 script = ExtResource("1_ctrl")
@@ -63,6 +64,7 @@ melee = NodePath("MeleeAttack")
 weapon = NodePath("Weapon")
 reaction = NodePath("HitReaction")
 stamina = NodePath("Stamina")
+character_stats = NodePath("Stats")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -86,6 +88,13 @@ script = ExtResource("3_health")
 [node name="Stamina" type="Node" parent="."]
 script = ExtResource("32_stamina")
 regen_delay = 0.8
+
+[node name="Stats" type="Node" parent="." node_paths=PackedStringArray("health", "stamina", "melee", "hurtbox")]
+script = ExtResource("36_stats")
+health = NodePath("../HealthComponent")
+stamina = NodePath("../Stamina")
+melee = NodePath("../MeleeAttack")
+hurtbox = NodePath("../Hurtbox")
 
 [node name="Drops" type="Node" parent="." node_paths=PackedStringArray("health")]
 script = ExtResource("34_drops")

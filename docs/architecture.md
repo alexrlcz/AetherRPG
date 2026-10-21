@@ -9,16 +9,30 @@
   - 0 .. `overview_zoom_end` (0.5): the overview. Pitch 35.264° (true
     isometric), a narrow 25° field of view from 41-68 m away, so it looks
     close to the old orthographic view; the visible height at the target
-    shrinks from `max_view_height` 30 m to `min_view_height` 10 m (start:
-    zoom 0.3 = 18 m, the old default).
+    shrinks from `max_view_height` 20 m to `min_view_height` 10 m (start:
+    zoom 0.3 = 14 m). It was 30 m; zooming that far out showed most of a
+    level at once.
   - `overview_zoom_end` .. 1: the close-up (smoothstep blend). The distance
     falls exponentially to `close_distance` 3.5 m, the fov widens to 55°, the
     pitch flattens to 12° and the look point rises to `close_look_height`
     1.4 m (the chest): a third-person camera.
-  - The wheel steps `zoom` by 0.08 and the rig glides there. Holding
-    `camera_rotate` (middle mouse) and dragging orbits the yaw (0.3° per
-    physical pixel, `screen_relative`, so window stretch doesn't change it).
-    Start yaw 45°.
+  - The wheel steps `zoom` by 0.08 and the rig glides there, at any time.
+    Default yaw 45° (`yaw_degrees`).
+  - Free look, only while the target stands still (horizontal speed under
+    `free_look_max_speed` 0.25 m/s): holding `camera_rotate` (middle mouse)
+    and dragging orbits (sideways, 0.3° per physical pixel,
+    `screen_relative`) and tilts (up / down, 0.2°/px, -25..+35° around the
+    zoom's pitch, final pitch 5..85°). No panning. These are offsets on the
+    default view (`get_yaw()`, `get_tilt()`). As soon as the target moves,
+    they ease back to zero over
+    `return_time` 0.7 s (cubic ease in / out, the yaw the short way round);
+    the zoom is kept. Dragging while moving does nothing; dragging while
+    standing during the return stops it. `set_yaw()` sets the default and
+    drops the free look; `reset_free_look()`.
+  - WASD follows the view as it is now (`get_movement_basis()`, the rig's
+    yaw including free look): W is up the screen, so walking off from a
+    rotated view goes the way it faced, and the walking direction turns
+    with the camera while it eases back.
 - Walls are 4.2 m tall on every side (`DungeonBuilder.WALL_HEIGHT`) and use
   `shaders/wall_cutout.gdshader`. Each frame the rig sets the global shader
   parameters (project.godot `[shader_globals]`) `cutout_camera`,
@@ -49,8 +63,8 @@
 | Action         | Default            | Behaviour |
 |----------------|--------------------|-----------|
 | `move_*`       | WASD / arrow keys  | Screen-relative movement; character faces movement direction. |
-| `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). |
-| `camera_rotate` (hold) | Middle mouse | Drag to orbit the camera around the player. |
+| `aim` (hold)   | Right mouse        | Character keeps facing the cursor; WASD still moves screen-relative (strafe / walk backwards). With a shield worn it also raises the shield (block). |
+| `camera_rotate` (hold) | Middle mouse | While standing still: drag sideways to orbit, up / down to tilt. Eases back when the player moves. |
 | `lock_on`      | Q                  | Lock onto the nearest visible enemy within 15 m, or release the lock. While locked the character always faces the target and strafes like `aim`; the lock wins over `aim`. |
 | `cycle_target` | Tab                | Next lock target, nearest to farthest, wrapping (locks the nearest if unlocked). |
 | `attack`       | Left mouse (hold to repeat) | Light combo: Rising Slash -> Sweep -> Finisher -> Rising Slash... (see Combat feel). |
@@ -98,6 +112,57 @@ focus, but if a UI control already has focus it may take Tab first.
 | 6 | interactable   | NPCs, loot, objects |
 | 7 | ragdoll        | Ragdoll bones; collide with the world only (corpses never block characters) |
 
+## Fog of war
+
+- `FogOfWar` (`scripts/world/fog_of_war.gd`, node `FogOfWar` in Main;
+  Main calls `setup(layout)` for every level). Each floor cell is
+  unexplored (pitch black: not even the layout), explored (seen before:
+  layout and props dim and unlit, no enemies) or in sight, with soft
+  transitions. Rooms and corridors are treated alike: a room is never lit
+  as a whole, only as far as the circle reaches.
+- In sight = the cells in line of sight within `sight_fade` (5 cells,
+  10 m) of the player: a cell counts when
+  a straight line from the player's exact cell point reaches its centre or
+  one of four points near its corners, crossing only floor and no wall
+  (`can_step`; a grid walk along the line). So the player sees a cone into
+  a room through its door and down a corridor, never through walls. The
+  light is full up to `sight_radius` (3.5 cells, 7 m) and fades out
+  smoothly (smoothstep) to `sight_fade` (10 m), per pixel from the player's
+  position. Recomputed when the player moves `refresh_distance` (0.25
+  cells). `refresh()`, `cell_at()`, `light_at()`, `is_visible_at()`,
+  `is_explored_at()`, `is_enemy_visible_at()`.
+- Explored: every mask texel keeps the brightest light it has had (0..1),
+  so explored areas have the same soft edges; `explored` lists the cells
+  whose light passed 0.3.
+- Enemies (children of Main's `Enemies`) are shown only in line of sight
+  within `enemy_sight` (4.5 cells, 9 m) (checked every 0.1 s), which hides
+  their health bars and numbers too.
+- Drawing: `mask` is a cell-space image (`TEXELS_PER_CELL` 4; R =
+  explored 0..1 per texel, G = line of sight per cell), sampled with linear
+  filtering. The shader's light = G x falloff(distance to `viewer`); the
+  pixel is multiplied by a blend of black, `explored_tint` x max(R, light)
+  and white.
+  Texels just outside the floor (outer walls) take the brightest state of
+  the floor cells within `wall_reach` (0.8 cells), so a lit room's walls
+  are lit; interior walls lie on cell edges, so each face takes its own
+  side. A full-screen quad on the active camera runs
+  `shaders/fog_of_war.gdshader`: each pixel's world position from the depth
+  buffer is turned back into a cell point (the warp inverted by 8
+  fixed-point steps, waves from `DungeonLayout.warp_waves()`, like
+  `DungeonLayout.to_cell()`) and multiplied (blend_mul) by black /
+  `explored_tint` (0.34, 0.36, 0.48) / white. It is drawn first among
+  transparent things (`render_priority` min), so damage numbers, health
+  bars and silhouettes stay on top. The sky / nothing is black.
+- Debug menu: "Fog of war" checkbox (`enabled`; off = no darkening, every
+  enemy shown).
+- `tests/fog_test.gd`: to_cell() round trip; the player's spot lit,
+  nothing lit past 10 m, the start room not lit as a whole, far room
+  unexplored, mask values, walls lit, quad on the camera; moving lights the
+  new place and dims the old; no line of sight through interior walls, the
+  corridor lit, cells hidden behind walls from a corridor; the falloff curve and partly explored texels; enemies shown
+  exactly by `is_enemy_visible_at()`; the checkbox; a new level starts
+  unexplored.
+
 ## Combat components
 
 Damage flows through small reusable nodes, never through direct calls between
@@ -127,7 +192,9 @@ reads it; nothing reacts to an attack merely starting.
   `receive_hit(amount, source)` remains for plain damage. While `invulnerable`
   (dodge i-frames) every hit is ignored and `evaded(event)` is emitted
   instead. The hitbox still counts that hurtbox as hit for the activation, so
-  a dodged swing cannot land later in the same strike.
+  a dodged swing cannot land later in the same strike. Then, if its optional
+  `guard` (BlockComponent) blocks the hit (try_block()), nothing is applied
+  and `blocked(event)` is emitted (see Shield and blocking).
 - `HitboxComponent`: while `active`, hits each hurtbox once per activation, or
   every `rehit_interval` seconds if > 0 (hazards, DoT zones). `source`
   defaults to the scene owner; `profile` (set per attack) goes on the event.
@@ -442,19 +509,20 @@ overhead cut.
   the debug panel, choosing dresses the player, colours listed, hood toggle
   per outfit, F1 closes it).
 
-## Gear (helmet, cloak, boots)
+## Gear (helmet, shield)
 
 - Assets (Sketchfab, credits and licences in
   `assets/equipment/gear/CREDITS.md`): `helmet_fantasy.glb` (badbanshee,
-  CC-BY 4.0), `boots_leather.glb` (Flenehens, CC-BY 4.0), `cloak_poor.glb`
-  (AQUILA miniatures, **CC-BY-NC-SA 4.0: non-commercial only, replace
-  before any commercial release**). None are rigged.
+  CC-BY 4.0), not rigged. The leather boots and the cloak were removed
+  (the cloak's licence was non-commercial); the BOOTS and CLOAK rigs below
+  are kept for replacement models but have no item or test right now.
 - `GearDefinition` (`scripts/items/gear_definition.gd`, extends
   ItemDefinition with kind GEAR, not auto-collected; `.tres` in
-  `resources/items/gear/`): `slot` (HEAD / BACK / FEET), `model`,
+  `resources/items/gear/`): `slot` (HEAD / BACK / FEET / OFF_HAND), `model`,
   `anchor_bone`, `fit` (model space -> offset from the anchor bone's rest
   origin, skeleton axes: Y up, facing +Z; fitted to the male body, other
-  bodies move with their anchor), `rig`, `hides_hair`, `hides_parts`
+  bodies move with their anchor; with `fit_in_bone_space` the fit is in the
+  anchor bone's own rest frame instead, like a weapon in the hand), `rig`, `hides_hair`, `hides_parts`
   (outfit mesh names), `hides_body_bones` (body triangles cut away).
   `CharacterAppearance.gear` holds what is worn (`gear_in(slot)`,
   `set_gear(slot, item)`). Stats come with the character stats step.
@@ -462,8 +530,8 @@ overhead cut.
   gear model into meshes skinned to the character's Skeleton3D: the model's
   surfaces are moved into skeleton space by the fit (normals, tangents,
   winding fixed for mirroring), weighted by the rig, given a Skin of named
-  binds; cached per gear and body rests (first build of the cloak ~0.15 s,
-  then ~0.05 s per apply).
+  binds; cached per gear and body rests (the first build is the slowest,
+  later applies reuse the cache).
   - RIGID: all on the anchor (helmet on `Head`, 2.6x, ~3.5 cm clear of the
     skull, hides the hair and an outfit hood).
   - BOOTS: the model is the right boot (turned 180 deg: its steel cap is the
@@ -492,10 +560,8 @@ overhead cut.
   turns the cloak simulation on / off. Creatures wear no gear.
 - Outfits & gear panel (`OutfitMenu`): Head / Back / Feet pickers with
   "None" and the gear of that slot (`gear_items` on the scene).
-- `tests/gear_test.gd`: items and slots; worn meshes, hair hidden, feet cut,
-  each piece's skin binds, cloak chains and spring, boots on the floor; the
-  cloak lifts sprinting, settles, survives a roll and the ragdoll; gear on
-  the female body; cloak off stops the simulation; the panel's pickers.
+- `tests/gear_test.gd`: the helmet item and slot; worn mesh, hair hidden,
+  skin bound to `Head`; on the female body; taken off; the panel's pickers.
 
 ## Monsters (Bestiary)
 
@@ -660,8 +726,11 @@ overhead cut.
 
 ## Enemies
 
-- `EnemyStats` resource (`scripts/enemies/enemy_stats.gd`) holds per-type
-  numbers; one `.tres` per enemy type in `resources/enemies/`.
+- `EnemyStats` resource (`scripts/enemies/enemy_stats.gd`, extends
+  StatBlock) holds per-type numbers; one `.tres` per enemy type in
+  `resources/enemies/`. Its core stats (health, stamina, regen, armor) go
+  through the enemy's `CharacterStats` node `Stats` (see Character stats);
+  its enemy defaults (60 hp, 60 stamina, 8/s) are set in `_init()`.
 - `EnemyController` state machine: `IDLE` (walk back to spawn) -> `CHASE`
   (within `detection_radius` and in line of sight) -> `ATTACK` (within
   `attack_range`) and back; gives up beyond `lose_interest_radius` or when the
@@ -746,6 +815,55 @@ overhead cut.
   dodges don't start until the landing (their presses stay buffered). A
   1 m jump can reach crates and tables; enemies can't follow (navmesh).
 
+## Shield and blocking
+
+- Asset: `assets/equipment/shield/Shield_Wooden.gltf` with the kit's trim
+  textures (Quaternius Fantasy Props MegaKit, CC0; licence file alongside).
+  Round, ~0.62 m, face +Z, origin on the vertical grip.
+- `ShieldDefinition` (`scripts/items/shield_definition.gd`, extends
+  GearDefinition; slot OFF_HAND, anchor `hand_l`, `fit_in_bone_space`):
+  `block_angle` (arc in front that blocks, 140 deg), `stamina_per_damage`
+  (1.5). `resources/items/gear/shield_wooden.tres`; its fit puts the grip in
+  the left palm, upright and facing forward in the guard pose (computed from
+  `UAL2/Idle_Shield`'s hand pose). Built by GearBuilder (RIGID on `hand_l`)
+  and worn like any gear, so the Outfits & gear panel's "Off hand" picker
+  equips it.
+- `BlockComponent` (`scripts/components/block_component.gd`, node `Block`
+  on the player): finds the worn shield (`appearance`, refreshed on
+  `applied`). The owner sets `raised`; `is_guarding()` = raised, a shield
+  worn and stamina not exhausted. `try_block(event)` (asked by
+  `HurtboxComponent.guard`): blocks when guarding and the attacker (its
+  position, else `-event.direction`) is within half the arc of the body's
+  facing; costs `amount * stamina_per_damage` stamina, no damage, no
+  stagger; feedback: ImpactEffect at the contact, placeholder clang (hit
+  sound pitched up), 0.05 s hitstop, small camera shake, "Block" from
+  DamageNumbers; emits `blocked`. A hit costing more than the stamina left
+  drains it to 0 (exhausted, so the shield drops until stamina recovers),
+  emits `guard_broken` and lands in full.
+- `GuardPoseModifier` (`scripts/characters/guard_pose_modifier.gd`,
+  SkeletonModifier3D created by BlockComponent as the Skeleton3D's first
+  child, before the ragdoll / cloak modifiers): samples `UAL2/Idle_Shield` at
+  0.6 s for `clavicle_l` and every bone below it (arm, hand, fingers) and
+  sets those local rotations while `raised`, blended through `influence` at
+  10/s. The legs and torso keep playing locomotion, so the character can
+  run with the shield up. The AnimationPlayer has no layers; this is the
+  upper-body overlay.
+- Player rules: holding `aim` (right mouse) with a shield worn raises it
+  while free to act (not attacking, rolling, drinking, interacting or
+  staggered; those lower it until they end). Facing and movement are the
+  aiming ones (cursor or locked target, strafe speeds: full speed straight
+  ahead, 0.55-0.65 sideways / backwards). Raising it ends a sprint.
+  `PlayerController.is_guarding` makes CharacterAnimator play
+  `guard_idle_animation` (`UAL2/Idle_Shield`) when standing still.
+- Known gaps: the flask is drunk with the left hand, so the shield stays in
+  that hand during a drink; enemies don't carry shields or react to being
+  blocked.
+- `tests/block_test.gd`: the item; right mouse without a shield only aims;
+  guard up / arm raised / guard stance / sprint ended / running with it up /
+  lowered on release; front and 45 deg hits blocked for stamina, side and
+  back hits land; guard break; attacking and rolling lower it; a real
+  knight's swing blocked; the panel's Off hand picker.
+
 ## Dodge roll
 
 - `DodgeComponent` (`scripts/components/`, node `Dodge` on the player) runs
@@ -771,6 +889,41 @@ overhead cut.
 - Debug-menu buttons don't take keyboard focus, so Space (`ui_accept`, now jump) never
   presses a focused button instead of jumping.
 
+## Character stats
+
+- Core stats (`CharacterStats.Stat`): MAX_HEALTH, MAX_STAMINA,
+  STAMINA_REGEN, DAMAGE (multiplier, base 1), ARMOR, MOVE_SPEED
+  (multiplier, base 1).
+- `StatBlock` (`scripts/stats/stat_block.gd`): base `max_health`,
+  `max_stamina`, `stamina_regen`, `armor`. The player's is
+  `resources/stats/player_stats.tres` (100 / 100 / 30 / 0); `EnemyStats`
+  extends it.
+- `StatModifier` (`scripts/stats/stat_modifier.gd`): `stat`, `kind` (FLAT /
+  PERCENT / MULTIPLY), `value`; `StatModifier.make()` for code. Final value
+  = (base + FLATs) x (1 + PERCENTs) x MULTIPLYs, never below 0.
+- `CharacterStats` (`scripts/stats/character_stats.gd`, node `Stats` on the
+  player and the enemy knight scene): `base`, modifiers by source
+  (`set_modifiers(source, list)`, `remove_modifiers()`, `get_modifiers()`),
+  `get_value(stat)`, `get_base_value()`, `stats_changed`. `recalculate()`
+  pushes MAX_HEALTH -> `HealthComponent.max_health` (rounded; full stays
+  full, otherwise clamped), MAX_STAMINA / STAMINA_REGEN -> StaminaComponent,
+  DAMAGE -> `MeleeAttackComponent.damage_scale`, ARMOR ->
+  `HurtboxComponent.damage_reduction` = armor / (armor + 100) (50 armor:
+  33% less). The hurtbox applies it after dodge and block checks; a hit
+  always does at least 1. MOVE_SPEED is read by the controllers: the
+  player's `_top_speed()` (run, sprint, walk; weapon speed overrides are
+  scaled too) and the enemy's `stats.move_speed`.
+- Gear: `GearDefinition.modifiers`. Until equipment slots exist,
+  CharacterStats' optional `appearance` supplies them: on every apply, the
+  worn gear's modifiers become source `&"gear"`. Helmet +10 armor, wooden
+  shield +5.
+- Debug menu: the player's final stats at the top of the panel
+  (`DebugMenu.stats_text()`).
+- `tests/stats_test.gd`: modifier maths and pushes; the player's base;
+  gear armor reducing a hit, removed with the gear; max health and +20%
+  move speed on the real player; enemy bases (defaults, the imp's .tres),
+  elite x2 health / x1.5 damage, enemy armor.
+
 ## Stamina
 
 - `StaminaComponent` (`scripts/components/`, node `Stamina` on the player and
@@ -794,7 +947,7 @@ overhead cut.
   Whirlwind 30, Slide Strike 26, Leaping Slam 32; dodge 18. Knights: club
   swing 15, knight dash 22, greatsword slash 18 / leap 26.
 - Player: 100 stamina, 30/s regen after 0.6 s (component defaults).
-- Enemies: `EnemyStats.max_stamina` (60) and `stamina_regen` (8/s, after
+- Enemies (through their CharacterStats): `EnemyStats.max_stamina` (60) and `stamina_regen` (8/s, after
   0.8 s). An exhausted enemy within `attack_range` holds its ground facing
   the target instead of swinging, and won't dash, until it recovers — a
   punish window. Elite multipliers don't scale stamina.
@@ -1103,11 +1256,12 @@ overhead cut.
   - Elites: `EnemyEntry` Elite group (`size_scale`, `health_scale`,
     `damage_scale`, `poise_scale`), copied by Main onto `EnemyController`
     before `_ready()`, which then applies them to its own copy of `stats`
-    (health, poise, knockback / detection), the `Visual` scale, its own
-    copies of the body and hurtbox capsules, health bar / damage numbers
-    height, nav agent size, reach (`attack_range`, dash ranges), root-motion
-    lunge, `MeleeAttackComponent.damage_scale`, and the ragdoll's death
-    throw (÷ size). Bosses are elite knights until they get their own
+    (poise, knockback / detection), the `Visual` scale, its own copies of
+    the body and hurtbox capsules, health bar / damage numbers height, nav
+    agent size, reach (`attack_range`, dash ranges), root-motion lunge, and
+    the ragdoll's death throw (÷ size). Health and damage are MULTIPLY
+    modifiers (source `&"elite"`) on its CharacterStats, which push
+    `max_health` and `MeleeAttackComponent.damage_scale`. Bosses are elite knights until they get their own
     scenes and AI.
   - `Main`: the boss spawn becomes `Main.boss`; the gate is `sealed` (dark
     red portal, ignores the player) until the boss's `died` →
@@ -1223,8 +1377,9 @@ assets/characters/mixamo/            mixamo_locomotion.res (generated; rig libra
 assets/characters/universal/         Base character bodies, hair parts, animation library (CC0)
 assets/characters/outfits/           Modular Character Outfits - Fantasy: Peasant / Ranger, male and female (CC0)
 assets/characters/monsters/          Bestiary - Dungeon Monsters Kit: Imp, Puglin (CC0)
-assets/equipment/gear/               Helmet, boots (CC-BY), cloak (CC-BY-NC-SA!); CREDITS.md
-resources/items/gear/                GearDefinitions (helmet, cloak, boots)
+assets/equipment/gear/               Helmet (CC-BY); CREDITS.md
+assets/equipment/shield/             Wooden shield + trim textures (Quaternius Fantasy Props MegaKit, CC0)
+resources/items/gear/                GearDefinitions (helmet, wooden shield)
 resources/characters/                CharacterAppearance .tres files
 (unused)                             knight_rig.tscn, build_knight_rig.gd, knight_post_import.gd, assets/characters/knight/
 assets/equipment/                    Weapon and armour FBX meshes
@@ -1242,6 +1397,7 @@ scripts/world/level_generator.gd     LevelGenerator: seeded room-and-corridor la
 scripts/world/room_analysis.gd       RoomAnalysis: rooms, start / exit of hand-made maps
 scripts/world/level_pool.gd          LevelPool: generated level or a hand-made map per run level
 scripts/world/exit_gate.gd           ExitGate: the portal to the next level
+scripts/world/fog_of_war.gd          FogOfWar: unexplored / explored / visible cells, enemy hiding (+ shaders/fog_of_war.gdshader)
 scripts/run/run_state.gd             RunState autoload (class GameRun): the current run
 scripts/run/player_profile.gd        Profile autoload (class PlayerProfile): gold (later inventory), kept across runs, saved
 scripts/items/                       ItemDefinition, Pickup, DropComponent, LootTable / LootEntry, LootSpawner, Chest
@@ -1253,7 +1409,7 @@ scripts/world/encounter_planner.gd   EncounterPlanner: enemy budget and placemen
 scripts/world/enemy_roster.gd        EnemyRoster / enemy_entry.gd EnemyEntry: data for the planner
 resources/encounters/                Rosters and enemy entries
 scripts/ui/damage_numbers.gd         Floating combat numbers
-scripts/components/                  health, stamina, flask, interactor, hitbox, hurtbox, melee attack, dodge, hit flash components
+scripts/components/                  health, stamina, flask, interactor, hitbox, hurtbox, melee attack, dodge, block, hit flash components
 scripts/combat/                      AttackProfile, HitEvent, HitReactionComponent, ImpactFeedbackComponent, Hitstop, WeaponDefinition, WeaponComponent
 scripts/vfx/                         ImpactEffect (placeholder), WeaponTrail
 scripts/audio/placeholder_sfx.gd     Synthesised stand-in hit/whoosh sounds
@@ -1268,6 +1424,8 @@ scenes/enemies/enemy_knight.tscn     Melee enemy (ash-skinned humanoid + club)
 scenes/enemies/enemy_imp.tscn        Imp (inherits the knight scene)
 scenes/enemies/enemy_puglin.tscn     Puglin (inherits the knight scene)
 scripts/enemies/                     enemy_controller.gd, enemy_stats.gd
+scripts/stats/                       StatBlock, StatModifier, CharacterStats (core stats + modifiers)
+resources/stats/                     player_stats.tres (the player's base StatBlock)
 resources/enemies/                   EnemyStats and enemy CharacterAppearance .tres files
 resources/navigation/                Baked navmeshes
 shaders/billboard_bar.gdshader
