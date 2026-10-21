@@ -36,6 +36,10 @@ var _bag_title: Label
 var _stats_label: Label
 var _gold_label: Label
 var _window: Control
+## The hover tooltip and the cell it is for.
+var _tip: PanelContainer
+var _tip_text: RichTextLabel
+var _hovered: ItemSlot
 
 
 ## Anything dropped on it (outside the window) falls on the floor.
@@ -78,6 +82,8 @@ func open() -> void:
 	visible = true
 	if player:
 		player.mouse_blocked = true
+	if _window.scale != Vector2.ONE:
+		_window.pivot_offset = _window.size * 0.5
 	refresh()
 	opened.emit()
 
@@ -86,6 +92,8 @@ func close() -> void:
 	if not visible:
 		return
 	visible = false
+	_hovered = null
+	_tip.hide()
 	if player:
 		player.mouse_blocked = false
 	closed.emit()
@@ -125,6 +133,7 @@ func refresh() -> void:
 	_stats_label.text = DebugMenu.stats_text(stats)
 	var profile := PlayerProfile.current()
 	_gold_label.text = "Gold %d" % (profile.gold if profile else 0)
+	_update_tip()
 
 
 ## Double-click / right-click on a cell: equip a bag item, or take an
@@ -205,14 +214,45 @@ func tooltip_text_for(cell: ItemSlot) -> String:
 	return "\n".join(lines)
 
 
-func make_tooltip(cell: ItemSlot) -> Control:
-	var text := RichTextLabel.new()
-	text.bbcode_enabled = true
-	text.fit_content = true
-	text.autowrap_mode = TextServer.AUTOWRAP_OFF
-	text.custom_minimum_size = Vector2(220, 0)
-	text.text = tooltip_text_for(cell)
-	return text
+## Shows the tooltip for `cell` (its item's stats) next to the mouse.
+func hover(cell: ItemSlot) -> void:
+	_hovered = cell
+	_update_tip()
+
+
+func unhover(cell: ItemSlot) -> void:
+	if _hovered == cell:
+		_hovered = null
+		_tip.hide()
+
+
+## The tooltip shown now ("" when none; tests).
+func get_tooltip_text() -> String:
+	return _tip_text.text if _tip.visible else ""
+
+
+func _update_tip() -> void:
+	if _hovered == null or _hovered.item == null or not visible:
+		_tip.hide()
+		return
+	_tip_text.text = tooltip_text_for(_hovered)
+	_tip.show()
+	_tip.reset_size()
+	_place_tip()
+
+
+func _process(_delta: float) -> void:
+	if _tip and _tip.visible:
+		_place_tip()
+
+
+## Next to the mouse, kept inside the screen.
+func _place_tip() -> void:
+	var view := get_viewport().get_visible_rect().size
+	var at := get_viewport().get_mouse_position() + Vector2(18, 18)
+	at.x = minf(at.x, view.x - _tip.size.x - 8.0)
+	at.y = minf(at.y, view.y - _tip.size.y - 8.0)
+	_tip.position = at
 
 
 ## Stat changes from wearing `item` instead of `worn` (null = nothing):
@@ -316,11 +356,30 @@ func _build() -> void:
 	_gold_label.add_theme_color_override(&"font_color", Color(1.0, 0.8, 0.3))
 	right.add_child(_gold_label)
 
+	_tip = PanelContainer.new()
+	_tip.name = "Tooltip"
+	var tip_style := StyleBoxFlat.new()
+	tip_style.bg_color = Color(0.04, 0.04, 0.05, 0.96)
+	tip_style.set_border_width_all(1)
+	tip_style.border_color = Color(0.9, 0.75, 0.3, 0.7)
+	tip_style.set_corner_radius_all(4)
+	tip_style.set_content_margin_all(8)
+	_tip.add_theme_stylebox_override(&"panel", tip_style)
+	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tip_text = RichTextLabel.new()
+	_tip_text.bbcode_enabled = true
+	_tip_text.fit_content = true
+	_tip_text.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_tip_text.custom_minimum_size = Vector2(220, 0)
+	_tip_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tip.add_child(_tip_text)
+	_tip.hide()
 	var hint := Label.new()
 	hint.text = "Double-click or right-click: equip / to bag     Drag: move, equip     Drag outside: drop     I: close"
 	hint.add_theme_font_size_override(&"font_size", 12)
 	hint.add_theme_color_override(&"font_color", Color(0.6, 0.6, 0.6))
 	rows.add_child(hint)
+	add_child(_tip)  # Last: drawn over the window.
 
 
 func _heading(text: String) -> Label:

@@ -46,7 +46,7 @@ func test_layouts() -> void:
 	var pool := LevelPool.new()
 	pool.scrawl_chance = 1.0  # Boss floors never come from maps.
 	for level in [5, 15]:
-		var encounter: BossEncounter = pool.boss if level == 5 else pool.chapter_boss
+		var encounter: BossEncounter = pool.level_bosses.get(level, pool.boss) if level == 5 else pool.chapter_boss
 		var bad := {}
 		for s in range(1, 41):
 			var problem := _check_boss_floor(pool.layout_for(s, level), encounter)

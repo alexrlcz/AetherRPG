@@ -5,7 +5,8 @@ extends PanelContainer
 ## colour for the kind of item; an empty equipment slot shows its slot
 ## name. Double-click or right-click asks the screen to equip / take off;
 ## drag and drop goes through the screen's can_drop() / drop(); hovering
-## shows the screen's tooltip (stats, compared with what is worn).
+## (bag cells and equipment slots alike) shows the screen's tooltip
+## (stats; for a bag item compared with what is worn).
 
 ## Background colours per item slot (dimmed when empty).
 const KIND_COLORS := {
@@ -48,6 +49,12 @@ func _init() -> void:
 	_label.add_theme_font_size_override(&"font_size", 12)
 	_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	mouse_entered.connect(func() -> void:
+		if screen:
+			screen.hover(self))
+	mouse_exited.connect(func() -> void:
+		if screen:
+			screen.unhover(self))
 
 
 func set_item(new_item: GearDefinition) -> void:
@@ -56,8 +63,6 @@ func set_item(new_item: GearDefinition) -> void:
 	_caption.visible = equip_slot != &""
 	_label.text = item.display_name if item else ""
 	_style.bg_color = EMPTY_COLOR if item == null else KIND_COLORS.get(item.slot, ARMOR_COLOR)
-	# Any text turns Godot's tooltip on; the content is _make_custom_tooltip().
-	tooltip_text = item.display_name if item else ""
 
 
 func get_item_label() -> String:
@@ -76,6 +81,7 @@ func _gui_input(event: InputEvent) -> void:
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	if item == null:
 		return null
+	screen.unhover(self)
 	var preview := Label.new()
 	preview.text = item.display_name
 	preview.add_theme_font_size_override(&"font_size", 14)
@@ -90,6 +96,3 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	screen.drop(data["from"], self)
 
-
-func _make_custom_tooltip(_for_text: String) -> Object:
-	return screen.make_tooltip(self) if item else null

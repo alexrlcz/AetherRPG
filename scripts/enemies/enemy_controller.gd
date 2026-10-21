@@ -68,6 +68,8 @@ var _last_seen_position: Vector3
 var _unseen_time: float = 0.0
 var _home: Vector3
 var _dash_cooldown_left: float = 0.0
+## Seconds left standing still (hold()); INF = until release_hold().
+var _hold_left: float = 0.0
 
 ## From the equipped weapon.
 var attack_profile: AttackProfile
@@ -103,6 +105,14 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if target == null or not is_instance_valid(target):
 		target = get_tree().get_first_node_in_group("player") as Node3D
+	if _hold_left > 0.0 and state != State.DEAD:
+		_hold_left -= delta
+		_apply_movement(Vector3.ZERO, delta)
+		if _target_alive():
+			facing_direction = _flat(target.global_position - global_position).normalized()
+			_apply_rotation(delta)
+		move_and_slide()
+		return
 
 	_dash_cooldown_left -= delta
 	var move_dir := Vector3.ZERO
@@ -213,6 +223,23 @@ func _on_weapon_equipped(new_weapon: WeaponDefinition) -> void:
 	dash_attack = new_weapon.enemy_dash_attack
 	dash_min_range = new_weapon.enemy_dash_min_range * size_scale
 	dash_max_range = new_weapon.enemy_dash_max_range * size_scale
+
+
+## Stands still facing the target for `seconds` (INF = until
+## release_hold()): no chasing, no attacks (one in progress is cancelled).
+## For taunts and other shows (MutantBoss); hits still land and stagger.
+func hold(seconds: float) -> void:
+	_hold_left = seconds
+	melee.cancel()
+	velocity = Vector3.ZERO
+
+
+func release_hold() -> void:
+	_hold_left = 0.0
+
+
+func is_held() -> bool:
+	return _hold_left > 0.0
 
 
 ## True for enemies scaled up as elites or bosses.

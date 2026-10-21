@@ -8,11 +8,11 @@
 [ext_resource type="Script" uid="uid://cl5y8ndg4oa2n" path="res://scripts/world/enemy_spawner.gd" id="7_spawner"]
 [ext_resource type="PackedScene" path="res://scenes/debug/debug_menu.tscn" id="8_debug"]
 [ext_resource type="Script" uid="uid://plft8eekvbr8" path="res://scripts/combat/hitstop.gd" id="40_hitstop"]
-[ext_resource type="Script" path="res://scripts/ui/level_fade.gd" id="41_fade"]
+[ext_resource type="Script" uid="uid://m84iute8ugh4" path="res://scripts/ui/level_fade.gd" id="41_fade"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/enemy_imp.tscn" id="42_imp"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/enemy_puglin.tscn" id="43_puglin"]
-[ext_resource type="Script" path="res://scripts/world/fog_of_war.gd" id="44_fog"]
-[ext_resource type="Script" path="res://scripts/ui/inventory_screen.gd" id="45_inventory"]
+[ext_resource type="Script" uid="uid://bqhsfo625w8e0" path="res://scripts/world/fog_of_war.gd" id="44_fog"]
+[ext_resource type="Script" uid="uid://dmwuv8robj3go" path="res://scripts/ui/inventory_screen.gd" id="45_inventory"]
 
 [node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player", "enemies", "fade", "hud", "fog")]
 script = ExtResource("6_main")
@@ -30,7 +30,7 @@ script = ExtResource("40_hitstop")
 
 [node name="Enemies" type="Node3D" parent="." unique_id=1689111946]
 
-[node name="LevelFade" type="CanvasLayer" parent="."]
+[node name="LevelFade" type="CanvasLayer" parent="." unique_id=463052510]
 script = ExtResource("41_fade")
 
 [node name="IsoCameraRig" parent="." unique_id=2066421102 instance=ExtResource("3_camera")]
@@ -61,12 +61,12 @@ hud = NodePath("../HUD")
 inventory_screen = NodePath("../InventoryScreen")
 main = NodePath("..")
 
-[node name="FogOfWar" type="Node" parent="." node_paths=PackedStringArray("player", "enemies")]
+[node name="FogOfWar" type="Node" parent="." unique_id=1827183077 node_paths=PackedStringArray("player", "enemies")]
 script = ExtResource("44_fog")
 player = NodePath("../Player")
 enemies = NodePath("../Enemies")
 
-[node name="InventoryScreen" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "inventory", "equipment", "stats")]
+[node name="InventoryScreen" type="CanvasLayer" parent="." unique_id=1959768946 node_paths=PackedStringArray("player", "inventory", "equipment", "stats")]
 script = ExtResource("45_inventory")
 player = NodePath("../Player")
 inventory = NodePath("../Player/Inventory")

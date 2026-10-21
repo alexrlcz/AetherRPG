@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Mutant Swipe"
+weight = 1
+damage = 24
+stamina_cost = 18.0
+windup = 1.0
+strike_duration = 0.3
+recovery = 0.9
+animation = &"Mutant/Swipe"
+anim_strike_start = 1.1
+anim_strike_end = 1.45
+anim_recovery_end = 2.4
+hitstop = 0.08
+camera_shake = 0.4
+knockback = 5.0
+hitstun = 0.45
+stagger = 30.0
+impact_scale = 1.3

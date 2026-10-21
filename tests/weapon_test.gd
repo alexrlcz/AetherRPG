@@ -41,6 +41,7 @@ func test_swap() -> void:
 	check(weapon.current == SWORD, "player starts with the sword")
 	check(_model_name(weapon) == "Sword", "sword model in the hand (%s)" % _model_name(weapon))
 	check(player.light_combo == SWORD.light_combo, "sword combo")
+	var own_speeds := [player.move_speed, player.sprint_speed]
 	weapon.equip(GREATSWORD)
 	await ticks(20)
 	check(_model_name(weapon) == "Claymore", "Claymore model in the hand (%s)" % _model_name(weapon))
@@ -61,7 +62,7 @@ func test_swap() -> void:
 	check(animator.idle_animation == &"Sword_Idle" and animator.run_animation == &"Jog_Fwd"
 		and animator.sprint_animation == &"Sprint", "animation set restored")
 	check(animator.idle_variants.size() == 10, "player idle variants restored (%d)" % animator.idle_variants.size())
-	check(player.move_speed == 6.0 and player.sprint_speed == 8.0, "speeds restored")
+	check(player.move_speed == own_speeds[0] and player.sprint_speed == own_speeds[1], "speeds restored")
 	check(player.reaction.light_animation == &"Hit_Chest", "hit reaction restored")
 	check(_hitbox_shape(player).shape.size == SWORD.hitbox_size, "sword hitbox restored")
 	await clear_arena()

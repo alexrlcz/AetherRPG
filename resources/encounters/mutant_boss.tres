@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="BossEncounter" format=3]
+
+[ext_resource type="Script" path="res://scripts/world/boss_encounter.gd" id="1_boss"]
+[ext_resource type="Script" path="res://scripts/world/enemy_entry.gd" id="2_entry"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/enemy_mutant.tscn" id="3_mutant"]
+[ext_resource type="Resource" path="res://resources/loot/warden_boss.tres" id="90_loot"]
+
+[sub_resource type="Resource" id="Entry_mutant"]
+script = ExtResource("2_entry")
+loot = ExtResource("90_loot")
+display_name = "Warrok the Mutant"
+scene = ExtResource("3_mutant")
+cost = 0
+health_scale = 10.0
+damage_scale = 1.0
+poise_scale = 3.0
+
+[resource]
+script = ExtResource("1_boss")
+title = "Warrok the Mutant"
+boss = SubResource("Entry_mutant")
+arena_size = 14

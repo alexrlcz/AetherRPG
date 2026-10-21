@@ -73,6 +73,14 @@ const TORCH_SPACING := 5.0
 const TORCH_HEIGHT := 2.6
 const TORCH_COLOR := Color(1.0, 0.62, 0.32)
 
+## Cave fill: boulders on every non-floor cell within CAVE_MARGIN cells of
+## the level's bounds, so the space outside the map reads as solid rock.
+## Cells next to the floor get small boulders pushed away from it (the
+## walls stand there); the rest big ones. ROCK_VARIANTS meshes.
+const CAVE_MARGIN := 10
+const ROCK_VARIANTS := 4
+const ROCK_COLOR := Color(0.2, 0.19, 0.18)
+
 ## Kinds understood in DungeonLayout.props.
 const PROP_KINDS := ["pillar", "crate", "barrel", "table", "chest", "rubble", "statue",
 	"brazier", "campfire", "throne"]
@@ -123,6 +131,7 @@ func build(layout: DungeonLayout, level_name: String = "Dungeon") -> Node3D:
 	_build_props(nav, root)
 	_build_markers(root)
 	_build_exit_gate(nav)
+	_build_cave_fill(root)
 	return root
 
 
@@ -780,6 +789,91 @@ func _build_exit_gate(nav: Node3D) -> void:
 			gate.position = _world(label[1])
 			nav.add_child(gate)
 			return
+
+
+# --- Cave fill ---------------------------------------------------------------
+
+func _build_cave_fill(parent: Node3D) -> void:
+	var floor := _layout.floor_cells
+	if floor.is_empty():
+		return
+	var low := Vector2i(1 << 30, 1 << 30)
+	var high := -low
+	for cell: Vector2i in floor:
+		low = Vector2i(mini(low.x, cell.x), mini(low.y, cell.y))
+		high = Vector2i(maxi(high.x, cell.x), maxi(high.y, cell.y))
+	var transforms: Array = []
+	for i in ROCK_VARIANTS:
+		transforms.append([])
+	for y in range(low.y - CAVE_MARGIN, high.y + CAVE_MARGIN + 1):
+		for x in range(low.x - CAVE_MARGIN, high.x + CAVE_MARGIN + 1):
+			var cell := Vector2i(x, y)
+			if floor.has(cell):
+				continue
+			# Away from the nearest floor cell around (walls stand in between).
+			var away := Vector2.ZERO
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if floor.has(cell + Vector2i(dx, dy)):
+						away -= Vector2(dx, dy)
+			var near := away != Vector2.ZERO
+			var centre := Vector2(cell) + Vector2(0.5, 0.5)
+			var radius: float
+			var height: float
+			if near:
+				centre += away.normalized() * 0.45
+				radius = _rng.randf_range(0.45, 0.65) * CELL
+				height = _rng.randf_range(2.6, 4.4)
+			else:
+				centre += Vector2(_rng.randf_range(-0.3, 0.3), _rng.randf_range(-0.3, 0.3))
+				radius = _rng.randf_range(0.75, 1.05) * CELL
+				height = _rng.randf_range(2.5, 6.5)
+			var basis := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(radius, height * 0.5, radius))
+			var at := _layout.to_world(centre, CELL, height * 0.35)
+			transforms[_rng.randi() % ROCK_VARIANTS].append(Transform3D(basis, at))
+	var material := _cutout_material(ROCK_COLOR, _mats["wall"].get_shader_parameter("noise_texture"))
+	var holder := Node3D.new()
+	holder.name = "CaveFill"
+	parent.add_child(holder)
+	for i in ROCK_VARIANTS:
+		var multimesh := MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.mesh = _rock_mesh(i)
+		multimesh.instance_count = transforms[i].size()
+		for j in transforms[i].size():
+			multimesh.set_instance_transform(j, transforms[i][j])
+		var instance := MultiMeshInstance3D.new()
+		instance.name = "Rocks%d" % i
+		instance.multimesh = multimesh
+		instance.material_override = material
+		holder.add_child(instance)
+
+
+## A lumpy low-poly boulder about 1 unit in radius (flat shaded), from a
+## sphere whose vertices are pushed in and out by a hash of their position
+## (so the seam's duplicate vertices move together and nothing cracks).
+static func _rock_mesh(variant: int) -> ArrayMesh:
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	sphere.radial_segments = 9
+	sphere.rings = 5
+	var arrays := sphere.get_mesh_arrays()
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	for i in vertices.size():
+		var v := vertices[i]
+		var key := hash([variant, v.snapped(Vector3.ONE * 0.001)])
+		var bump := 0.72 + float(absi(key) % 1000) / 1000.0 * 0.5
+		v *= bump
+		v.y = maxf(v.y, -0.6)  # A flat-ish base.
+		vertices[i] = v
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var index: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for i in index:
+		tool.add_vertex(vertices[i])
+	tool.generate_normals()
+	return tool.commit()
 
 
 # --- Scene helpers ---------------------------------------------------------

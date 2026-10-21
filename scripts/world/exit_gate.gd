@@ -16,8 +16,8 @@ signal opened
 ## Seconds after entering the tree before the gate reacts (no instant
 ## trigger while a level is being set up).
 @export var arm_delay: float = 0.5
-@export var portal_color: Color = Color(0.45, 0.75, 1.0)
-@export var sealed_color: Color = Color(0.35, 0.1, 0.08)
+@export var portal_color: Color = Color(0.698, 0.824, 0.275, 1.0)
+@export var sealed_color: Color = Color(0.216, 0.049, 0.035, 1.0)
 ## While sealed the gate ignores the player.
 @export var sealed: bool = false:
 	set(value):

@@ -1,0 +1,222 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_controller.gd" id="1_ctrl"]
+[ext_resource type="Resource" path="res://resources/enemies/mutant.tres" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="4_hurtbox"]
+[ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="5_hitbox"]
+[ext_resource type="Script" path="res://scripts/characters/character_animator.gd" id="6_anim"]
+[ext_resource type="Script" path="res://scripts/ui/world_health_bar.gd" id="7_bar"]
+[ext_resource type="Shader" path="res://shaders/billboard_bar.gdshader" id="8_bar_shader"]
+[ext_resource type="PackedScene" path="res://assets/characters/mutant/Mutant.fbx" id="9_model"]
+[ext_resource type="AnimationLibrary" path="res://assets/characters/mutant/mutant_animations.res" id="10_library"]
+[ext_resource type="Script" path="res://scripts/components/melee_attack_component.gd" id="11_melee"]
+[ext_resource type="Script" path="res://scripts/ui/damage_numbers.gd" id="21_numbers"]
+[ext_resource type="Script" path="res://scripts/components/hit_flash_component.gd" id="22_flash"]
+[ext_resource type="Script" path="res://scripts/characters/occlusion_silhouette.gd" id="23_silhouette"]
+[ext_resource type="Script" path="res://scripts/combat/hit_reaction_component.gd" id="26_reaction"]
+[ext_resource type="Script" path="res://scripts/combat/impact_feedback_component.gd" id="27_feedback"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_component.gd" id="28_weapon"]
+[ext_resource type="Resource" path="res://resources/weapons/mutant_claws.tres" id="29_claws"]
+[ext_resource type="Script" path="res://scripts/components/stamina_component.gd" id="32_stamina"]
+[ext_resource type="Script" path="res://scripts/ui/world_stamina_bar.gd" id="33_stamina_bar"]
+[ext_resource type="Script" path="res://scripts/items/drop_component.gd" id="34_drops"]
+[ext_resource type="Resource" path="res://resources/loot/warden_boss.tres" id="35_loot"]
+[ext_resource type="Script" path="res://scripts/stats/character_stats.gd" id="36_stats"]
+[ext_resource type="Script" path="res://scripts/enemies/mutant_boss.gd" id="37_boss"]
+
+[sub_resource type="CapsuleShape3D" id="Shape_body"]
+radius = 0.6
+height = 2.4
+
+[sub_resource type="BoxShape3D" id="Shape_attack"]
+size = Vector3(0.9, 0.9, 1.2)
+
+[sub_resource type="ShaderMaterial" id="Mat_bar"]
+render_priority = 1
+shader = ExtResource("8_bar_shader")
+
+[sub_resource type="QuadMesh" id="Mesh_bar"]
+material = SubResource("Mat_bar")
+size = Vector2(1.4, 0.15)
+
+[sub_resource type="ShaderMaterial" id="Mat_stamina_bar"]
+render_priority = 1
+shader = ExtResource("8_bar_shader")
+shader_parameter/fill_color = Color(0.95, 0.78, 0.2, 1)
+
+[sub_resource type="QuadMesh" id="Mesh_stamina_bar"]
+material = SubResource("Mat_stamina_bar")
+size = Vector2(1.4, 0.08)
+
+[node name="EnemyMutant" type="CharacterBody3D" node_paths=PackedStringArray("health", "nav_agent", "hurtbox", "melee", "weapon", "reaction", "stamina", "character_stats") groups=["enemies"]]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_ctrl")
+stats = ExtResource("2_stats")
+health = NodePath("HealthComponent")
+nav_agent = NodePath("NavigationAgent3D")
+hurtbox = NodePath("Hurtbox")
+melee = NodePath("MeleeAttack")
+weapon = NodePath("Weapon")
+reaction = NodePath("HitReaction")
+stamina = NodePath("Stamina")
+character_stats = NodePath("Stats")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_body")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Model" parent="Visual" instance=ExtResource("9_model")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="AnimationPlayer" parent="Visual/Model" index="1"]
+libraries = {
+&"Mutant": ExtResource("10_library")
+}
+
+[node name="LeftHand" type="BoneAttachment3D" parent="Visual/Model/Skeleton3D"]
+bone_name = "mixamorig_LeftHand"
+
+[node name="AttackHitbox" type="Area3D" parent="Visual/Model/Skeleton3D/LeftHand"]
+collision_layer = 0
+collision_mask = 8
+monitorable = false
+script = ExtResource("5_hitbox")
+sweep = true
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Visual/Model/Skeleton3D/LeftHand/AttackHitbox"]
+shape = SubResource("Shape_attack")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.5
+path_height_offset = 0.5
+target_desired_distance = 0.6
+height = 2.4
+radius = 0.6
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+
+[node name="Stamina" type="Node" parent="."]
+script = ExtResource("32_stamina")
+regen_delay = 0.8
+
+[node name="Stats" type="Node" parent="." node_paths=PackedStringArray("health", "stamina", "melee", "hurtbox")]
+script = ExtResource("36_stats")
+health = NodePath("../HealthComponent")
+stamina = NodePath("../Stamina")
+melee = NodePath("../MeleeAttack")
+hurtbox = NodePath("../Hurtbox")
+
+[node name="Drops" type="Node" parent="." node_paths=PackedStringArray("health")]
+script = ExtResource("34_drops")
+health = NodePath("../HealthComponent")
+loot = ExtResource("35_loot")
+
+[node name="Hurtbox" type="Area3D" parent="." node_paths=PackedStringArray("health")]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+script = ExtResource("4_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtbox"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_body")
+
+[node name="HealthBar" type="MeshInstance3D" parent="." node_paths=PackedStringArray("health")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.8, 0)
+cast_shadow = 0
+mesh = SubResource("Mesh_bar")
+script = ExtResource("7_bar")
+health = NodePath("../HealthComponent")
+
+[node name="StaminaBar" type="MeshInstance3D" parent="." node_paths=PackedStringArray("stamina", "health")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.68, 0)
+cast_shadow = 0
+mesh = SubResource("Mesh_stamina_bar")
+script = ExtResource("33_stamina_bar")
+stamina = NodePath("../Stamina")
+health = NodePath("../HealthComponent")
+
+[node name="Animator" type="Node" parent="." node_paths=PackedStringArray("body", "health", "animation_player")]
+script = ExtResource("6_anim")
+body = NodePath("..")
+health = NodePath("../HealthComponent")
+animation_player = NodePath("../Visual/Model/AnimationPlayer")
+idle_animation = &"Mutant/Idle"
+walk_animation = &""
+run_animation = &"Mutant/Walk"
+sprint_animation = &""
+formal_walk_animation = &""
+death_animation = &"Mutant/Dying"
+run_reference_speed = 0.98
+forward_left_animation = &""
+forward_right_animation = &""
+strafe_left_animation = &""
+strafe_right_animation = &""
+backward_left_animation = &""
+backward_right_animation = &""
+backward_animation = &""
+jump_animation = &""
+air_animation = &""
+land_animation = &""
+
+[node name="MeleeAttack" type="Node" parent="." node_paths=PackedStringArray("hitbox", "animator", "stamina")]
+script = ExtResource("11_melee")
+hitbox = NodePath("../Visual/Model/Skeleton3D/LeftHand/AttackHitbox")
+animator = NodePath("../Animator")
+stamina = NodePath("../Stamina")
+animation = &"Mutant/Swipe"
+animation_strike_time = 1.1
+animation_strike_end = 1.45
+animation_recovery_end = 2.4
+
+[node name="HitReaction" type="Node" parent="." node_paths=PackedStringArray("hurtbox", "health", "visual", "animator")]
+script = ExtResource("26_reaction")
+hurtbox = NodePath("../Hurtbox")
+health = NodePath("../HealthComponent")
+visual = NodePath("../Visual")
+animator = NodePath("../Animator")
+light_animation = &""
+heavy_animation = &""
+knockdown_animation = &""
+get_up_animation = &""
+
+[node name="ImpactFeedback" type="Node" parent="." node_paths=PackedStringArray("melee")]
+script = ExtResource("27_feedback")
+melee = NodePath("../MeleeAttack")
+hitstop_scale = 0.8
+
+[node name="DamageNumbers" type="Node3D" parent="." node_paths=PackedStringArray("health")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.0, 0)
+script = ExtResource("21_numbers")
+health = NodePath("../HealthComponent")
+color = Color(1, 0.95, 0.85, 1)
+
+[node name="HitFlash" type="Node" parent="." node_paths=PackedStringArray("health", "root")]
+script = ExtResource("22_flash")
+health = NodePath("../HealthComponent")
+root = NodePath("../Visual")
+
+[node name="OcclusionSilhouette" type="Node" parent="." node_paths=PackedStringArray("root", "health")]
+script = ExtResource("23_silhouette")
+root = NodePath("../Visual")
+color = Color(1, 0.3, 0.25, 0.5)
+health = NodePath("../HealthComponent")
+
+[node name="Weapon" type="Node" parent="." node_paths=PackedStringArray("hand", "hitbox", "animator", "reaction")]
+script = ExtResource("28_weapon")
+weapon = ExtResource("29_claws")
+hand = NodePath("../Visual/Model/Skeleton3D/LeftHand")
+hitbox = NodePath("../Visual/Model/Skeleton3D/LeftHand/AttackHitbox")
+animator = NodePath("../Animator")
+reaction = NodePath("../HitReaction")
+
+[node name="MutantBoss" type="Node" parent="." node_paths=PackedStringArray("controller", "animator")]
+script = ExtResource("37_boss")
+controller = NodePath("..")
+animator = NodePath("../Animator")

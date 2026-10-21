@@ -54,6 +54,10 @@ const SIGHT_SAMPLES: Array[Vector2] = [Vector2(0.5, 0.5), Vector2(0.15, 0.15), V
 @export var sight_radius: float = 3.5
 ## Where the light has faded out completely (cells): 5 = 10 m.
 @export var sight_fade: float = 5.0
+## Rock outside the map (DungeonBuilder's cave fill) this many cells past
+## the floor is explored (drawn dim) as far as the light reached the floor
+## next to it, so the cave shows as dark shapes around explored places.
+@export var rock_reach: int = 2
 ## Enemies in line of sight are shown within this many cells.
 @export var enemy_sight: float = 4.5
 ## How far (cells) past the floor's edge the outer walls take its state.
@@ -83,6 +87,8 @@ var _mask_cell_origin: Vector2i
 var _outer_texels: Dictionary = {}
 ## Outside texel -> Array of the floor cells that light it.
 var _texel_cells: Dictionary = {}
+## Floor cell -> the non-floor cells within `rock_reach` of it (cave rock).
+var _rock_cells: Dictionary = {}
 var _player_cell: Vector2i = NO_CELL
 ## The player's cell point when the sight was last computed.
 var _viewer: Vector2 = Vector2(-1000000, -1000000)
@@ -112,6 +118,7 @@ func setup(new_layout: DungeonLayout) -> void:
 	_sight_cells.clear()
 	_outer_texels.clear()
 	_texel_cells.clear()
+	_rock_cells.clear()
 	_player_cell = NO_CELL
 	_viewer = Vector2(-1000000, -1000000)
 	if layout == null or layout.floor_cells.is_empty():
@@ -234,6 +241,12 @@ func _update_sight() -> void:
 			outer[texel] = true
 	for texel: int in outer:
 		_write_outer(texel)
+	var rocks := {}
+	for cell: Vector2i in visible_cells:
+		for rock: Vector2i in _rock_cells.get(cell, []):
+			rocks[rock] = true
+	for rock: Vector2i in rocks:
+		_explore_rock(rock)
 	mask.set_data(mask.get_width(), mask.get_height(), false, Image.FORMAT_RGBA8, _data)
 	_texture.update(mask)
 	updated.emit()
@@ -308,6 +321,17 @@ func _explore_cell(cell: Vector2i) -> void:
 		explored[cell] = true
 
 
+## A cave rock cell: explored (R only) as far as the light reaches it.
+func _explore_rock(cell: Vector2i) -> void:
+	for ty in TEXELS_PER_CELL:
+		for tx in TEXELS_PER_CELL:
+			var point := Vector2(cell) + (Vector2(tx, ty) + Vector2(0.5, 0.5)) / TEXELS_PER_CELL
+			var value := roundi(_falloff(point.distance_to(_viewer)) * 255.0)
+			var i := _texel_index(cell, tx, ty) * 4
+			if value > _data[i]:
+				_data[i] = value
+
+
 ## An outside texel: in sight when a cell that lights it is, and explored
 ## as far as its own position has been lit.
 func _write_outer(texel: int) -> void:
@@ -333,7 +357,7 @@ func _build_mask() -> void:
 	for cell: Vector2i in layout.floor_cells:
 		low = Vector2i(mini(low.x, cell.x), mini(low.y, cell.y))
 		high = Vector2i(maxi(high.x, cell.x), maxi(high.y, cell.y))
-	var margin := ceili(wall_reach) + 1
+	var margin := maxi(ceili(wall_reach), rock_reach) + 1
 	_mask_cell_origin = low - Vector2i.ONE * margin
 	var cells := high - low + Vector2i.ONE * (1 + margin * 2)
 	mask = Image.create(cells.x * TEXELS_PER_CELL, cells.y * TEXELS_PER_CELL, false, Image.FORMAT_RGBA8)
@@ -360,6 +384,13 @@ func _build_mask() -> void:
 							_texel_cells[texel] = []
 						_texel_cells[texel].append(cell)
 		_outer_texels[cell] = lit
+		var rock: Array[Vector2i] = []
+		for dy in range(-rock_reach, rock_reach + 1):
+			for dx in range(-rock_reach, rock_reach + 1):
+				var outside := cell + Vector2i(dx, dy)
+				if not layout.floor_cells.has(outside):
+					rock.append(outside)
+		_rock_cells[cell] = rock
 	if _texture == null:
 		_texture = ImageTexture.create_from_image(mask)
 	else:

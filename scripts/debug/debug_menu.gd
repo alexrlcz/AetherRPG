@@ -103,17 +103,26 @@ func fit_to_screen() -> void:
 	_panel.reset_size()
 
 
+## Where the UI size sliders are saved (not under test suites and tools,
+## like the profile).
+const UI_SETTINGS_PATH := "user://ui_settings.cfg"
+
+## Setting key -> its slider.
+var _scale_sliders: Dictionary = {}
+
+
 ## UI size sliders (under the fog checkbox): the HUD's health / stamina
-## panel, this menu (and its Equipment panel), the inventory window.
+## panel, this menu (and its Equipment panel), the inventory window. Their
+## values are saved and restored.
 func _setup_ui_scale_controls() -> void:
 	var grid := GridContainer.new()
 	grid.columns = 2
 	var vbox := %FogCheck.get_parent() as Control
 	vbox.add_child(grid)
 	vbox.move_child(grid, %FogCheck.get_index() + 1)
-	for row: Array in [["Health/stamina size", func(v: float) -> void: if hud: hud.set_player_panel_scale(v)],
-			["Debug menu size", _set_menu_scale],
-			["Inventory size", func(v: float) -> void: if inventory_screen: inventory_screen.set_ui_scale(v)]]:
+	for row: Array in [["Health/stamina size", func(v: float) -> void: if hud: hud.set_player_panel_scale(v), "hud"],
+			["Debug menu size", _set_menu_scale, "debug_menu"],
+			["Inventory size", func(v: float) -> void: if inventory_screen: inventory_screen.set_ui_scale(v), "inventory"]]:
 		var label := Label.new()
 		label.text = row[0]
 		grid.add_child(label)
@@ -136,7 +145,34 @@ func _setup_ui_scale_controls() -> void:
 			slider.drag_ended.connect(func(_changed: bool) -> void: slider.remove_meta(&"dragging"))
 		else:
 			slider.value_changed.connect(row[1])
+		slider.value_changed.connect(func(_v: float) -> void: _save_ui_scales())
 		grid.add_child(slider)
+		_scale_sliders[row[2]] = slider
+	_restore_ui_scales.call_deferred()  # Once the panels have their sizes.
+
+
+func _ui_settings_saved() -> bool:
+	var profile := PlayerProfile.current()
+	return profile != null and profile.persists()
+
+
+func _save_ui_scales() -> void:
+	if not _ui_settings_saved():
+		return
+	var config := ConfigFile.new()
+	for key: String in _scale_sliders:
+		config.set_value("ui_scale", key, (_scale_sliders[key] as HSlider).value)
+	config.save(UI_SETTINGS_PATH)
+
+
+func _restore_ui_scales() -> void:
+	if not _ui_settings_saved():
+		return
+	var config := ConfigFile.new()
+	if config.load(UI_SETTINGS_PATH) != OK:
+		return
+	for key: String in _scale_sliders:
+		(_scale_sliders[key] as HSlider).value = float(config.get_value("ui_scale", key, 1.0))
 
 
 ## Scales this panel from its top-right corner, and the Equipment panel.

@@ -14,11 +14,13 @@ extends RefCounted
 ##
 ## Boss floors (GameRun.floor_kind(): every 5th level, and each chapter's
 ## last) are never maps: they are LevelGenerator.generate_boss() floors with
-## `boss` or `chapter_boss`.
+## `boss` or `chapter_boss`, or the encounter `level_bosses` names for that
+## level (level 5: the mutant).
 
 const MAPS_DIR := "res://assets/maps/"
 const BOSS := "res://resources/encounters/warden_boss.tres"
 const CHAPTER_BOSS := "res://resources/encounters/chapter_boss.tres"
+const MUTANT_BOSS := "res://resources/encounters/mutant_boss.tres"
 
 ## Share of levels built from a hand-made map (when there is one).
 var scrawl_chance: float = 0.3
@@ -29,6 +31,8 @@ var roster: EnemyRoster
 ## The fights of boss floors and of chapter ends.
 var boss: BossEncounter = load(BOSS)
 var chapter_boss: BossEncounter = load(CHAPTER_BOSS)
+## Run level -> the boss fight of that level, instead of `boss`.
+var level_bosses: Dictionary = {5: load(MUTANT_BOSS)}
 
 
 ## Every .ds map in `dir`, sorted.
@@ -45,7 +49,7 @@ static func map_paths(dir: String = MAPS_DIR) -> PackedStringArray:
 func layout_for(level_seed: int, level: int) -> DungeonLayout:
 	match GameRun.floor_kind(level):
 		GameRun.FLOOR_BOSS:
-			return _generator().generate_boss(level_seed, level, boss)
+			return _generator().generate_boss(level_seed, level, level_bosses.get(level, boss))
 		GameRun.FLOOR_CHAPTER_BOSS:
 			return _generator().generate_boss(level_seed, level, chapter_boss)
 	var rng := RandomNumberGenerator.new()

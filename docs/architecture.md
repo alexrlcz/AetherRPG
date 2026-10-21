@@ -646,6 +646,35 @@ overhead cut.
   skin bound to `Head`; on the female body; taken off; the Equipment
   panel's head picker.
 
+## Mutant boss (level 5)
+
+- Assets: `assets/characters/mutant/Mutant.fbx` (Mixamo "Warrok W
+  Kurniawan", royalty-free for games) and `mutant_animations.res`, built
+  by `tools/build_mutant_library.gd` from the Mixamo FBX downloads in
+  `D:/AetherRPG/mutant` (same skeleton: no retargeting; only the animation
+  data is kept): Idle, Walk (Strut Walking, in place, reference speed
+  0.98 m/s), Swipe, JumpAttack (in place), Roar, Flex, Dance (Hip Hop
+  Dancing, looping), Dying. The tool prints when each hand moves fastest
+  (the hit moments: swipe ~1.25 s, the leap's slam ~1.67 s, both mostly
+  the left hand).
+- `scenes/enemies/enemy_mutant.tscn`: the knight's components on the
+  Mixamo model (no ragdoll or appearance: death plays `Mutant/Dying`); the
+  AnimationPlayer gets the library as "Mutant"; the claw hitbox rides
+  `mixamorig_LeftHand`. `resources/enemies/mutant.tres` (slow strut
+  1.6 m/s, detection 15 m), `resources/weapons/mutant_claws.tres` (Swipe
+  2.6 m reach, Leap from 4.5–9 m: knockdown), `resources/combat/mutant_*.tres`.
+- `MutantBoss` (`scripts/enemies/mutant_boss.gd`): the first time the
+  controller starts chasing (the player entered its arena) it plays Roar or
+  Flex at random, held in place facing the player
+  (`EnemyController.hold(seconds)`); when the player dies from its hit
+  (`last_hit.source`), it holds forever and dances.
+- `EnemyController.hold(seconds)` / `release_hold()` / `is_held()`:
+  stands still facing the target, no chasing or attacks.
+- Level 5: `LevelPool.level_bosses` (`{5: mutant_boss.tres}`) replaces the
+  default boss on that level only; "Warrok the Mutant", x10 health.
+- `tests/mutant_test.gd`: level 5's boss and level 10's, the clips, the
+  intro hold, landing hits, the dance only for its own kills, the death.
+
 ## Monsters (Bestiary)
 
 - Assets: Quaternius "Bestiary - Dungeon Monsters Kit" (Standard, the free

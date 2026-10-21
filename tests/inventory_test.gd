@@ -136,6 +136,13 @@ func test_screen() -> void:
 	check(screen.get_bag_cell(0).get_item_label() == "Ranger Jerkin", "the bag cells show the bag")
 	var tip := screen.tooltip_text_for(screen.get_bag_cell(0))
 	check("Instead of Peasant Tunic" in tip and "+6 Armor" in tip, "the tooltip compares with what is worn")
+	screen.hover(screen.get_equip_cell(&"chest"))
+	check("Peasant Tunic" in screen.get_tooltip_text() and "+4 Armor" in screen.get_tooltip_text(),
+		"hovering an equipment slot shows its item's stats")
+	screen.hover(screen.get_bag_cell(0))
+	check("Instead of Peasant Tunic" in screen.get_tooltip_text(), "hovering a bag item shows the comparison")
+	screen.unhover(screen.get_bag_cell(0))
+	check(screen.get_tooltip_text() == "", "leaving the cell hides it")
 	check(InventoryScreen.compare(_item("ring_might"), null)[0][0] == "+10% Damage"
 		and InventoryScreen.compare(_item("tunic_peasant"), _item("tunic_peasant")).is_empty(), "compare()")
 	# Clicks belong to the screen: no attack, no aim.

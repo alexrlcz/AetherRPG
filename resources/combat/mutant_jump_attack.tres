@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/attack_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+display_name = "Mutant Leap"
+weight = 1
+damage = 34
+stamina_cost = 30.0
+windup = 1.4
+strike_duration = 0.3
+recovery = 1.3
+animation = &"Mutant/JumpAttack"
+anim_strike_start = 1.5
+anim_strike_end = 1.85
+anim_recovery_end = 3.4
+move_cancel = -1.0
+lunge_distance = 5.0
+lunge_lead = 0.6
+hitstop = 0.12
+camera_shake = 0.7
+knockback = 8.0
+hitstun = 0.7
+stagger = 45.0
+knockdown = true
+impact_scale = 1.6

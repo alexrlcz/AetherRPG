@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://resources/combat/mutant_swipe.tres" id="2_swipe"]
+[ext_resource type="Resource" path="res://resources/combat/mutant_jump_attack.tres" id="3_leap"]
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Mutant Claws"
+hitbox_size = Vector3(0.9, 0.9, 1.2)
+hitbox_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+trail_base = Vector3(0, 0, 0)
+trail_tip = Vector3(0, 0.3, 0)
+enemy_attack = ExtResource("2_swipe")
+enemy_attack_range = 2.6
+enemy_dash_attack = ExtResource("3_leap")
+enemy_dash_min_range = 4.5
+enemy_dash_max_range = 9.0

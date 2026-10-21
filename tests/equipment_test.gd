@@ -125,10 +125,12 @@ func test_main_hand() -> void:
 	var player := spawn_player(Vector3.ZERO)
 	await ticks(2)
 	var greatsword := preload("res://resources/weapons/greatsword.tres")
+	var own_speed := player.move_speed
 	player.equipment.equip(greatsword)
-	check(player.weapon.current == greatsword and player.move_speed == 5.0, "greatsword: its moveset and speed")
+	check(player.weapon.current == greatsword and player.move_speed == greatsword.character_overrides["move_speed"],
+		"greatsword: its moveset and speed")
 	player.equipment.unequip(&"main_hand")
-	check(player.weapon.current == SWORD and player.move_speed == 6.0, "empty main hand: the default sword")
+	check(player.weapon.current == SWORD and player.move_speed == own_speed, "empty main hand: the default sword")
 	check(not greatsword.is_worn_visual() and not _names(player).any(func(n: String) -> bool: return "Claymore" in n),
 		"weapons never go on the body")
 	await clear_arena()
