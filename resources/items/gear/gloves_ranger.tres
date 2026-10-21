@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="OutfitPieceDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/outfit_piece_definition.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/stats/stat_modifier.gd" id="9_mod"]
+
+[sub_resource type="Resource" id="Mod0"]
+script = ExtResource("9_mod")
+stat = 4
+kind = 0
+value = 3.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"gloves_ranger"
+display_name = "Ranger Gloves"
+kind = 1
+auto_collect = false
+slot = 8
+outfit = "Ranger"
+male_meshes = PackedStringArray("Male_Ranger_Arms")
+female_meshes = PackedStringArray("Female_Ranger_Arms")
+hides_body_bones = PackedStringArray("upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thumb_01_l", "thumb_01_r", "thumb_02_l", "thumb_02_r", "thumb_03_l", "thumb_03_r", "index_01_l", "index_01_r", "index_02_l", "index_02_r", "index_03_l", "index_03_r", "middle_01_l", "middle_01_r", "middle_02_l", "middle_02_r", "middle_03_l", "middle_03_r", "ring_01_l", "ring_01_r", "ring_02_l", "ring_02_r", "ring_03_l", "ring_03_r", "pinky_01_l", "pinky_01_r", "pinky_02_l", "pinky_02_r", "pinky_03_l", "pinky_03_r")
+modifiers = Array[ExtResource("9_mod")]([SubResource("Mod0")])

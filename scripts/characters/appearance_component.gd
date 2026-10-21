@@ -1,20 +1,24 @@
 class_name AppearanceComponent
 extends Node
 ## Builds a humanoid rig's look from a CharacterAppearance: body meshes, skin
-## texture/tint, hairstyle, beard, eyebrows and outfit. All parts share the
-## Universal skeleton's bone names, so their skinned meshes are moved onto
-## this rig's Skeleton3D. Call apply() again at any time to change the look.
+## texture/tint, hairstyle, beard, eyebrows and the gear drawn on it. All
+## parts share the Universal skeleton's bone names, so their skinned meshes
+## are moved onto this rig's Skeleton3D. Call apply() again at any time to
+## change the look.
 ##
-## Outfits (Modular Character Outfits - Fantasy, assets/characters/outfits):
-## under clothing only the body's head and neck are shown (a mesh cut from
-## the body by bone weights, cached per body), or the body pokes through.
-## The outfit's own skin surfaces (hands; MI_Regular_* materials) take the
-## body's skin texture and tint (same UV layout), so they match the face.
-## The colour variant swaps the cloth texture.
-##
-## Gear (GearDefinition: helmet, cloak, boots) is built onto the skeleton by
-## GearBuilder after the body and outfit; it can hide the hairstyle and
-## outfit pieces under it. A worn cloak turns its spring-bone simulation on.
+## Gear (`appearance.gear`, filled by the player's Equipment):
+## - OutfitPieceDefinition: meshes from the Modular Character Outfits -
+##   Fantasy models (assets/characters/outfits), per body. Pieces mix
+##   freely (a Ranger hood over a Peasant tunic). Their skin surfaces
+##   (hands; MI_Regular_* materials) take the body's skin texture and tint
+##   (same UV layout), so they match the face; `cloth_variant` swaps the
+##   cloth texture.
+## - Other worn gear (helmet, shield) is built onto the skeleton by
+##   GearBuilder. A worn cloak turns its spring-bone simulation on.
+## Under the gear the body is cut away where every item's
+## `hides_body_bones` say (a mesh cut by bone weights, cached per body and
+## bone set), so skin never pokes through; `hides_hair` items (helmets,
+## hoods) hide the hairstyle and `hides_parts` leave outfit meshes off.
 ##
 ## Creatures (Bestiary - Dungeon Monsters Kit, assets/characters/monsters):
 ## rigged to the same Universal skeleton (55 of its bones), so a creature's
@@ -40,17 +44,12 @@ const CREATURE_TEXTURES := {
 	"Imp": ["Imp_T_Imp_BaseColor_1.png", "T_Imp_BaseColor_2.png", "T_Imp_BaseColor_3.png"],
 	"Puglin": ["Puglin_T_Puglin_BaseColor_1.png", "T_Puglin_BaseColor_2.png", "T_Puglin_BaseColor_3.png"],
 }
-## Cloth textures per outfit, in CharacterAppearance.OUTFIT_VARIANTS order.
+## Cloth textures per outfit (OutfitPieceDefinition.cloth_variant; the
+## first is the one the model has).
 const OUTFIT_TEXTURES := {
 	"Peasant": ["T_Peasant_BaseColor.png", "T_Peasant_2_BaseColor.png"],
 	"Ranger": ["T_Ranger_BaseColor.png", "T_Ranger_3_BaseColor.png"],
 }
-## Body triangles kept under an outfit: those whose corners are mostly
-## weighted to these bones.
-const HEAD_BONES: PackedStringArray = ["Head", "neck_01"]
-## Outfit mesh name parts for the optional pieces.
-const HOOD_PART := "_Head_Hood"
-const PAULDRON_PART := "_Acc_Pauldron"
 const BODIES := {
 	CharacterAppearance.Body.MALE: {
 		"scene": BODIES_DIR + "Superhero_Male_FullBody.gltf",
@@ -80,8 +79,8 @@ var _skeleton_origin: Vector3
 ## This character's colour when its appearance asks for a random one.
 var _creature_variant: int = -1
 
-## Meshes cut from each body (key -> ArrayMesh): the head under outfits,
-## the body without the feet under boots...
+## Meshes cut from each body (key -> ArrayMesh): the body without the torso
+## under a tunic, without the feet in boots...
 static var _cut_meshes: Dictionary = {}
 
 
@@ -107,14 +106,14 @@ func apply(new_appearance: CharacterAppearance) -> void:
 		return
 
 	var body: Dictionary = BODIES[appearance.body]
-	var dressed := appearance.outfit != "None" and _outfit_path() != ""
 	var hidden := PackedStringArray()
-	var hidden_bones := PackedStringArray()
+	var hidden_bones := {}
 	var gear_hides_hair := false
 	for item in appearance.gear:
-		if item:
+		if item and item.is_worn_visual():
 			hidden.append_array(item.hides_parts)
-			hidden_bones.append_array(item.hides_body_bones)
+			for bone in item.hides_body_bones:
+				hidden_bones[bone] = true
 			gear_hides_hair = gear_hides_hair or item.hides_hair
 	var source := (load(body["scene"]) as PackedScene).instantiate()
 	_copy_proportions(source.find_children("*", "Skeleton3D", true, false)[0])
@@ -122,19 +121,20 @@ func apply(new_appearance: CharacterAppearance) -> void:
 	for mesh_name in body["meshes"]:
 		var mesh := _take_mesh(source, mesh_name)
 		if mesh_name == body["skin_mesh"]:
-			if dressed:
-				mesh.mesh = _cut_body(body["scene"], mesh, HEAD_BONES, true)
-			elif not hidden_bones.is_empty():
-				mesh.mesh = _cut_body(body["scene"], mesh, hidden_bones, false)
+			if not hidden_bones.is_empty():
+				var bones := PackedStringArray(hidden_bones.keys())
+				bones.sort()  # One cached cut per set of bones, whatever the order.
+				mesh.mesh = _cut_body(body["scene"], mesh, bones, false)
 			var skin := _tinted(mesh, appearance.skin_tint)
 			skin.albedo_texture = skin_texture
 	source.free()
 
-	var hooded := false
-	if dressed:
-		hooded = _add_outfit(skin_texture, hidden)
+	for item in appearance.gear:
+		var piece := item as OutfitPieceDefinition
+		if piece:
+			_add_piece(piece, skin_texture, hidden)
 
-	if appearance.hair_style != "None" and not hooded and not gear_hides_hair:
+	if appearance.hair_style != "None" and not gear_hides_hair:
 		_add_hair_part("Hair_" + appearance.hair_style)
 	if appearance.beard:
 		_add_hair_part("Hair_Beard")
@@ -142,7 +142,7 @@ func apply(new_appearance: CharacterAppearance) -> void:
 		_add_hair_part("Eyebrows_" + appearance.eyebrows)
 	var cloak: GearDefinition = null
 	for item in appearance.gear:
-		if item == null:
+		if item == null or item is OutfitPieceDefinition or not item.is_worn_visual():
 			continue
 		for mesh in GearBuilder.build(item, skeleton):
 			skeleton.add_child(mesh)
@@ -184,33 +184,24 @@ func _apply_creature() -> void:
 	source.free()
 
 
-## The outfit scene for the appearance's body, or "" if there is none.
-func _outfit_path() -> String:
-	var prefix := "Female_" if appearance.body == CharacterAppearance.Body.FEMALE else "Male_"
-	var path := OUTFITS_DIR + prefix + appearance.outfit + ".gltf"
+## Attaches an outfit piece's meshes for the appearance's body (leaving off
+## any whose names contain one of `hidden`).
+func _add_piece(piece: OutfitPieceDefinition, skin_texture: Texture2D, hidden: PackedStringArray) -> void:
+	var female := appearance.body == CharacterAppearance.Body.FEMALE
+	var path := OUTFITS_DIR + ("Female_" if female else "Male_") + piece.outfit + ".gltf"
 	if not ResourceLoader.exists(path):
 		push_warning("AppearanceComponent: no outfit '%s'" % path)
-		return ""
-	return path
-
-
-## Attaches the outfit's meshes (leaving off an unwanted hood / pauldrons,
-## and pieces whose names contain any of `hidden`, under gear). Returns true
-## if a hood is worn.
-func _add_outfit(skin_texture: Texture2D, hidden: PackedStringArray = []) -> bool:
-	var source := (load(_outfit_path()) as PackedScene).instantiate()
-	var textures: Array = OUTFIT_TEXTURES.get(appearance.outfit, [])
-	var variant := clampi(appearance.outfit_variant, 0, maxi(textures.size() - 1, 0))
+		return
+	var source := (load(path) as PackedScene).instantiate()
+	var textures: Array = OUTFIT_TEXTURES.get(piece.outfit, [])
+	var variant := clampi(piece.cloth_variant, 0, maxi(textures.size() - 1, 0))
 	var cloth: Texture2D = load(OUTFITS_DIR + textures[variant]) if variant > 0 else null
-	var hooded := false
-	for mesh: MeshInstance3D in source.find_children("*", "MeshInstance3D", true, false):
-		if Array(hidden).any(func(part: String) -> bool: return part in mesh.name):
+	for mesh_name in piece.meshes_for(female):
+		var mesh := source.find_child(mesh_name, true, false) as MeshInstance3D
+		if mesh == null:
+			push_warning("AppearanceComponent: %s has no mesh '%s'" % [path.get_file(), mesh_name])
 			continue
-		if HOOD_PART in mesh.name:
-			if not appearance.hood:
-				continue
-			hooded = true
-		if PAULDRON_PART in mesh.name and not appearance.pauldrons:
+		if Array(hidden).any(func(part: String) -> bool: return part in mesh.name):
 			continue
 		_attach(mesh)
 		for surface in mesh.mesh.get_surface_count():
@@ -228,12 +219,11 @@ func _add_outfit(skin_texture: Texture2D, hidden: PackedStringArray = []) -> boo
 				material.albedo_texture = cloth
 				mesh.set_surface_override_material(surface, material)
 	source.free()
-	return hooded
 
 
 ## The body mesh cut down to the triangles whose corners are mostly weighted
-## to `bone_names` (`keep`: the head under an outfit), or to the others
-## (not `keep`: no feet under boots). Made once per body and cut, then shared.
+## to `bone_names` (`keep`), or to the others (not `keep`: no torso under a
+## tunic, no feet in boots). Made once per body and cut, then shared.
 static func _cut_body(body_key: String, body: MeshInstance3D, bone_names: PackedStringArray,
 		keep: bool) -> ArrayMesh:
 	var key := "%s|%s|%s" % [body_key, ",".join(bone_names), keep]

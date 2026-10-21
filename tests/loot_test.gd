@@ -53,7 +53,8 @@ func test_tables() -> void:
 	b.seed = 77
 	var roll_a := CHEST_LOOT.roll(a, 3)
 	check(str(roll_a) == str(CHEST_LOOT.roll(b, 3)), "the same seed rolls the same (%s gold)" % roll_a[0][1])
-	check(roll_a.size() == 1 and roll_a[0][0] == GOLD, "gold lines merged into one")
+	var gold_lines := roll_a.filter(func(line: Array) -> bool: return line[0] == GOLD)
+	check(gold_lines.size() == 1 and roll_a[0][0] == GOLD, "gold lines merged into one (any gear comes after)")
 	# The shipped enemy tables.
 	for entry: EnemyEntry in [load("res://resources/encounters/club_knight.tres"),
 			load("res://resources/encounters/greatsword_knight.tres")]:

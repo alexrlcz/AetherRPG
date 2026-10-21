@@ -26,6 +26,12 @@
 [ext_resource type="Script" path="res://scripts/components/block_component.gd" id="46_block"]
 [ext_resource type="Script" path="res://scripts/stats/character_stats.gd" id="47_stats"]
 [ext_resource type="Resource" path="res://resources/stats/player_stats.tres" id="48_base"]
+[ext_resource type="Script" path="res://scripts/items/equipment.gd" id="49_equipment"]
+[ext_resource type="Script" path="res://scripts/items/inventory.gd" id="54_inventory"]
+[ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="50_gear"]
+[ext_resource type="Resource" path="res://resources/items/gear/tunic_peasant.tres" id="51_tunic"]
+[ext_resource type="Resource" path="res://resources/items/gear/trousers_peasant.tres" id="52_trousers"]
+[ext_resource type="Resource" path="res://resources/items/gear/shoes_peasant.tres" id="53_shoes"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -70,7 +76,7 @@ height = 0.03
 [sub_resource type="BoxShape3D" id="Shape_attack"]
 size = Vector3(0.25, 0.3, 0.9)
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee", "stamina", "flask", "interactor", "block", "character_stats") groups=["player"]]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("reaction", "lock_on", "dodge", "weapon", "health", "melee", "stamina", "flask", "interactor", "block", "character_stats", "equipment", "inventory") groups=["player"]]
 collision_layer = 2
 collision_mask = 5
 script = ExtResource("1_ctrl")
@@ -86,6 +92,8 @@ flask = NodePath("Flask")
 interactor = NodePath("Interactor")
 block = NodePath("Block")
 character_stats = NodePath("Stats")
+equipment = NodePath("Equipment")
+inventory = NodePath("Inventory")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
@@ -233,14 +241,13 @@ script = ExtResource("24_appearance")
 appearance = ExtResource("25_look")
 skeleton = NodePath("../Visual/Model/Armature/Skeleton3D")
 
-[node name="Stats" type="Node" parent="." node_paths=PackedStringArray("health", "stamina", "melee", "hurtbox", "appearance")]
+[node name="Stats" type="Node" parent="." node_paths=PackedStringArray("health", "stamina", "melee", "hurtbox")]
 script = ExtResource("47_stats")
 base = ExtResource("48_base")
 health = NodePath("../HealthComponent")
 stamina = NodePath("../Stamina")
 melee = NodePath("../MeleeAttack")
 hurtbox = NodePath("../Hurtbox")
-appearance = NodePath("../Appearance")
 
 [node name="Block" type="Node" parent="." node_paths=PackedStringArray("body", "appearance", "stamina", "animation_player", "skeleton", "numbers")]
 script = ExtResource("46_block")
@@ -270,6 +277,18 @@ hitbox = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/AttackHitbox")
 trail = NodePath("../Visual/Model/Armature/Skeleton3D/RightHand/WeaponTrail")
 animator = NodePath("../Animator")
 reaction = NodePath("../HitReaction")
+
+[node name="Equipment" type="Node" parent="." node_paths=PackedStringArray("appearance", "stats", "weapon")]
+script = ExtResource("49_equipment")
+appearance = NodePath("../Appearance")
+stats = NodePath("../Stats")
+weapon = NodePath("../Weapon")
+default_weapon = ExtResource("42_sword")
+starting_items = Array[ExtResource("50_gear")]([ExtResource("42_sword"), ExtResource("51_tunic"), ExtResource("52_trousers"), ExtResource("53_shoes")])
+
+[node name="Inventory" type="Node" parent="." node_paths=PackedStringArray("equipment")]
+script = ExtResource("54_inventory")
+equipment = NodePath("../Equipment")
 
 [connection signal="applied" from="Appearance" to="OcclusionSilhouette" method="refresh"]
 [connection signal="equipped" from="Weapon" to="OcclusionSilhouette" method="refresh" unbinds=1]

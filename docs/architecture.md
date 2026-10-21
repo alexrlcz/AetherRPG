@@ -74,10 +74,12 @@
 | `sprint` (toggle) | Left Alt        | Toggle sprinting (8 m/s while moving); breaks when you stop, attack, take damage, run out of stamina or die (press again to resume). Faces the movement direction even while aiming / locked on. Light attack while sprinting = Dash Strike. |
 | `walk_toggle`  | Left Ctrl          | Toggle walking (1.6 m/s, `Walk_Formal` cycle). |
 | `zoom_in/out`  | Mouse wheel        | Zoom; zooming in past the overview blends into a third-person view. |
-| `interact`     | F                  | Use what's in reach (a chest now; gear on the floor later), with a "[F] ..." prompt (see Loot). |
+| `interact`     | F                  | Use what's in reach (a chest, gear on the floor), with a "[F] ..." prompt (see Loot, Equipment). |
+| `inventory`    | I                  | Open / close the inventory screen (Escape also closes it); the game keeps running. |
+| `toggle_fullscreen` | F11           | Fullscreen (the start-up mode) <-> windowed. |
 | `use_flask`    | R                  | Drink a healing flask (see Healing flasks). Shares R with `restart`: drinking needs you alive, restarting dead. |
 | `restart`      | R                  | After death (1 s delay): start a new run at level 1 (new seed). |
-| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **god mode**, **generate a level** (seed + Generate, or Random level), player appearance and **player weapon** (Sword / Greatsword). |
+| `debug_menu`   | F1                 | Toggle the debug panel (debug builds only): spawn / kill enemies, heal, **god mode**, **generate a level** (seed + Generate, or Random level), player appearance and the **Equipment** panel. |
 | `debug_spawn_enemy` | F2          | Spawn an enemy at a random walkable point (debug builds only). |
 
 Attack presses are handled as input events (`_unhandled_input`), so clicks on
@@ -358,11 +360,9 @@ overhead cut.
   The rows sit in a ScrollContainer whose height `fit_to_screen()` caps to
   the window (re-fitted on resize and when opened), so a small window (the
   default 1152x648) scrolls instead of cutting off the bottom rows.
-  "Outfits..." (under Kill all enemies) opens the Outfits panel (`OutfitMenu`,
-  `scenes/debug/outfit_menu.tscn`, a child of the debug menu placed just left
-  of its panel): outfit (None / Peasant / Ranger), colour, Hood and Pauldrons
-  (disabled when the outfit has none), Close. It edits the same appearance
-  live; closing the debug menu closes it too.
+  "Equipment..." (under Kill all enemies) opens the Equipment panel
+  (`EquipmentMenu`, a child of the debug menu placed just left of its
+  panel; see Equipment); closing the debug menu closes it too.
   Frees itself in non-debug builds (`OS.is_debug_build()`).
 
 ## Character visuals and animation
@@ -473,41 +473,125 @@ overhead cut.
   `build_knight_rig.gd`, `knight_post_import.gd`, `RagdollLimbFollow`) are
   no longer used; kept until the new characters are confirmed.
 
-## Outfits
+## Equipment
 
-- Assets: Quaternius "Modular Character Outfits - Fantasy" (Standard, CC0),
-  in `assets/characters/outfits/`: the four whole outfits
-  (`Male_/Female_` + `Peasant` / `Ranger`, glTF) with their textures (4K
-  cloth textures downscaled to 2K on import into the repo), the extra
-  colour textures `T_Peasant_2_BaseColor` / `T_Ranger_3_BaseColor`, and the
-  licence. They are skinned to the same 65-bone Universal skeleton as the
-  bodies, so their meshes attach to the rig like hair. The pack's separate
-  "Modular Parts" files weren't copied: every part is already its own mesh
-  in the whole outfits.
-- `CharacterAppearance`: `outfit` ("None" / "Peasant" / "Ranger",
-  `OUTFITS`), `outfit_variant` (colour, names in `OUTFIT_VARIANTS`:
-  Peasant Linen / Earthen, Ranger Forest / Sand), `hood`, `pauldrons`
-  (`OUTFIT_PIECES`: only the ranger has them).
-- `AppearanceComponent` with an outfit:
-  - The body shows only its head and neck: a mesh cut from the body,
-    keeping triangles whose corners are mostly weighted to `Head` /
-    `neck_01` (`HEAD_BONES`), made once per body and shared (static
-    cache). The full body under clothes pokes through everywhere (the pack's
-    readme says the same).
-  - The outfit for the body (`<Male|Female>_<outfit>.gltf`) is attached
-    mesh by mesh, leaving off `*_Head_Hood` / `*_Acc_Pauldron*` when
-    toggled off. A worn hood hides the hairstyle (beard and eyebrows stay).
-  - The outfit's own skin surfaces (hands, `MI_Regular_*` materials) get the
-    body's skin texture (light / dark) and tint: same UV layout, so they
-    match the face. The colour variant swaps the cloth texture
-    (`OUTFIT_TEXTURES`).
-- `tests/outfit_test.gd`: ranger on the real player (outfit meshes,
-  head-only body below 40% of the triangles and nothing below 1.3 m, hood
-  hides hair but not the beard, hands use the skin texture and tint), hood
-  / pauldrons off, colour variant, the female cut, the head cut shared,
-  None restores the full body, and the menu in Main (button opens it beside
-  the debug panel, choosing dresses the player, colours listed, hood toggle
-  per outfit, F1 closes it).
+- Slots (`Equipment.SLOTS`): head, neck, shoulders, chest, back (cloak),
+  wrists, hands (gloves), legs, feet (boots), ring_1, ring_2, trinket,
+  main_hand, off_hand. Item slots are `GearDefinition.Slot` (HEAD, BACK,
+  FEET, OFF_HAND, NECK, SHOULDERS, CHEST, WRISTS, HANDS, LEGS, RING,
+  TRINKET, MAIN_HAND; appended so saved slot numbers stay valid);
+  `Equipment.SLOTS_OF` maps them (RING fits either ring slot).
+- Items are `GearDefinition`s (extends ItemDefinition, kind GEAR, picked up
+  with the interact key), with `modifiers` (stats while equipped) and
+  `describe_modifiers()` ("+4 Armor, +5% Move speed"):
+  - `OutfitPieceDefinition` (`scripts/items/outfit_piece_definition.gd`):
+    meshes from the Modular Character Outfits models (`outfit`,
+    `male_meshes` / `female_meshes`, `cloth_variant`), with
+    `hides_body_bones` and `hides_hair`.
+  - Model gear (helmet, shield): built by GearBuilder (see Gear).
+  - `WeaponDefinition` now extends GearDefinition (slot MAIN_HAND; its
+    `display_name` and `model` are the item's; `is_worn_visual()` false:
+    the model goes in the hand).
+  - Stat-only (no model): neck, rings, trinket.
+- `Equipment` (`scripts/items/equipment.gd`, node `Equipment` on the
+  player, last so it applies after the others): the single source of
+  truth. `equip(item, slot = auto)` returns the previous item (rings fill
+  the first free ring slot; an item never goes in a slot it doesn't fit),
+  `unequip(slot)`, `get_item(slot)`, `get_items()`, `slot_for()`,
+  `slots_for()`, signal `changed(slot, item, previous)`. Every change: the
+  worn visual items become the appearance's `gear` (its own duplicate of
+  the .tres) and it is re-applied; all modifiers become the CharacterStats
+  source `&"gear"` (`STATS_SOURCE`); the main-hand weapon (or
+  `default_weapon`, the sword, while empty) is equipped on the
+  WeaponComponent; and, `persistent`, the slots are saved to the profile.
+- Saving: `PlayerProfile.equipment` (slot -> resource path, profile JSON
+  version 2), written by `set_equipment()` on every change and restored on
+  ready; a fresh profile starts with `starting_items` (sword, Peasant
+  Tunic, Trousers, Shoes). Under test suites and tools the profile doesn't
+  persist (`persists()`: no save path), so every new player starts fresh.
+- Items (`resources/items/gear/`, generated, small fixed stats): Fantasy
+  Helmet (+10 armor), Ranger Hood (+4, hides hair), Amulet of Vigor (+20
+  health), Ranger Pauldron (+5), Peasant Tunic (+4), Ranger Jerkin with its
+  belts (+10), Ranger Bracers (+3), Peasant Wraps (+5 stamina), Ranger
+  Gloves (+3), Peasant Trousers (+4), Ranger Leggings (+7), Peasant Shoes
+  (+2), Ranger Boots (+4, +5% move speed), Ring of Endurance (+20 stamina),
+  Ring of Might (+10% damage), Swiftness Charm (+8% move speed), Wooden
+  Shield (+5); weapons Sword, Club, Greatsword. No cloak yet.
+- `ItemCatalog` (`scripts/items/item_catalog.gd`,
+  `resources/items/catalog.tres`): every player item; `for_slot()`,
+  `pick(rng)`.
+- Visuals (`AppearanceComponent`): outfit pieces are attached mesh by mesh
+  for the body (`<Male|Female>_<outfit>.gltf`), their skin surfaces (hands,
+  `MI_Regular_*`) take the body's skin texture and tint, `cloth_variant`
+  swaps the cloth (`OUTFIT_TEXTURES`). The body is cut where any worn
+  item's `hides_body_bones` say (the union, sorted, one cached cut per
+  body and bone set): tunic = spine, clavicles, upper arms; jerkin = spine,
+  clavicles; wraps = forearms, hands, fingers; gloves = whole arms and
+  fingers; trousers / leggings = pelvis, thighs, calves; shoes = feet;
+  boots = feet and calves. Pieces mix freely; nothing worn shows the body.
+- Pickups: gear on the floor is an interactable once landed
+  (`Pickup.can_interact()`, prompt "Take <name> (<stats>)", the
+  `PickUp_Table` animation); `collect()` equips it when a slot it fits is
+  empty (the collector's `equipment`), else puts it in the collector's
+  `inventory`; with the bag full it stays and the HUD shows "Bag full"
+  (`collect()` returns false).
+- Loot: `LootTable.gear` (the catalog) and `gear_chance`: one random item
+  on top of the rest. Enemies 6%, chests 40%, bosses 100%.
+- Debug Equipment panel (`EquipmentMenu`, `scenes/debug/equipment_menu.tscn`,
+  "Equipment..." in the debug menu, replacing the Outfits panel and the
+  weapon option): one picker per slot ("None" + the catalog's items that
+  fit), `choose(slot, item)`, `get_option(slot)`; follows changes made
+  elsewhere.
+- `tests/equipment_test.gd`: the starting loadout (and its 10 armor); rings
+  and slot rules, stats from the amulet / rings / charm, `changed`; the
+  full Ranger set (meshes, hood hides hair, body cut, skin hands, armor
+  36), female meshes, mixing; the main hand and the default sword; F on a
+  floor item equips it and drops the old one; saving and restoring through
+  the profile on disk; gear in loot rolls (~6% from an enemy, every slot
+  covered but the cloak); the debug panel.
+
+## Inventory
+
+- `Inventory` (`scripts/items/inventory.gd`, node `Inventory` on the
+  player): `capacity` (24) cells, each a GearDefinition or null (gear
+  doesn't stack; gold stays in the profile), keeping their place.
+  `add()` (first free; false when full), `remove_at()`, `move(from, to)`
+  (swap), `item_at()`, `count()`, `is_full()`, `first_free()`,
+  `get_cells()`, signal `changed`. With `equipment`: `equip_from(index,
+  slot = auto)` (the replaced item takes the cell), `unequip_to(slot,
+  index = first free)` (a taken cell swaps only if its item fits the
+  slot; false with a full bag), `drop(index)` / `drop_equipped(slot)`
+  (a Pickup at the owner's feet, in the level's drop container).
+  `persistent`: saved as `PlayerProfile.inventory` (resource path per
+  cell, "" for empty; `set_inventory()`), loaded on ready, like
+  Equipment.
+- Inventory screen (`InventoryScreen`, `scripts/ui/inventory_screen.gd`,
+  node in Main, built in code; `scripts/ui/item_slot.gd` per cell):
+  "inventory" (I) toggles it, Escape closes it; the game keeps running.
+  Left: the 14 equipment slots (two columns), right: the bag (6 x 4),
+  stats (`DebugMenu.stats_text()`) and gold. Cells show the item's name
+  on a colour per kind (weapons red, shield brown, jewellery gold, trinket
+  purple, armour blue; no icons yet). Double-click or right-click: equip
+  from the bag / take off to the bag ("Bag full" via HUD.notify()). Drag
+  and drop (`can_drop()` / `drop()`): bag <-> bag swaps, bag -> a slot the
+  item fits equips there, slot -> bag takes it off (a taken cell swaps if
+  its item fits), ring 1 <-> ring 2; dropped outside the window (the
+  full-screen backdrop, `drop_to_floor()`) it falls on the floor. Tooltip
+  (`tooltip_text_for()`, a RichTextLabel): name, slot, stats; for a bag
+  item "Instead of <worn>:" and the stat changes in green / red
+  (`compare()`). While open a full-screen backdrop takes every click (no
+  attacks, no wheel zoom) and `PlayerController.mouse_blocked` stops right
+  mouse from aiming / blocking; the keyboard still moves the player.
+- `HUD.notify(text)`: a short message above the interact prompt (HUD is in
+  group `HUD.GROUP`, so gameplay code calls it with call_group()).
+- Display: the game starts fullscreen (`display/window/size/mode` 3,
+  canvas_items stretch, so the 1152x648 layout scales up); F11
+  (`Main.toggle_fullscreen()`) switches to windowed and back.
+- `tests/inventory_test.gd`: the bag (cells, moving, full), equip_from /
+  unequip_to (swaps, refusals, full bag), dropping, saving and restoring
+  cells in place, the screen in Main (I / Escape, owns the mouse, cells,
+  tooltip comparison, double-click and right-click, every drag rule, drop
+  outside, "Bag full"), the fullscreen setting.
 
 ## Gear (helmet, shield)
 
@@ -555,13 +639,12 @@ overhead cut.
     tilted 3 deg back).
   - Note: the simulated pose only exists during the skeleton's update; read
     cloak bones inside `Skeleton3D.skeleton_updated`.
-- `AppearanceComponent` builds gear after the body and outfit, applies its
-  hides (cut body via `_cut_body()`, shared with the outfit head cut), and
-  turns the cloak simulation on / off. Creatures wear no gear.
-- Outfits & gear panel (`OutfitMenu`): Head / Back / Feet pickers with
-  "None" and the gear of that slot (`gear_items` on the scene).
+- `AppearanceComponent` builds model gear after the body and outfit
+  pieces, applies its hides (cut body via `_cut_body()`), and turns the
+  cloak simulation on / off. Creatures wear no gear.
 - `tests/gear_test.gd`: the helmet item and slot; worn mesh, hair hidden,
-  skin bound to `Head`; on the female body; taken off; the panel's pickers.
+  skin bound to `Head`; on the female body; taken off; the Equipment
+  panel's head picker.
 
 ## Monsters (Bestiary)
 
@@ -638,8 +721,8 @@ overhead cut.
   occlusion silhouette refreshes. `random_weapons` picks one on ready;
   `ignored_overrides` lets a character skip some (knights skip
   `idle_variants`).
-- Player: starts with the sword; the debug menu (F1) swaps Sword /
-  Greatsword (`DebugMenu.player_weapons`, `equip_player_weapon()`).
+- Player: the weapon is the main-hand item (Equipment; the sword to start
+  and while the main hand is empty); the debug Equipment panel swaps it.
   Knights: club or greatsword at random.
 - `sword.tres` (player): `Sword.fbx`, the A -> B -> C combo, Cleave, Dash
   Strike; no overrides (the scene defaults are the sword set).
@@ -826,8 +909,8 @@ overhead cut.
   (1.5). `resources/items/gear/shield_wooden.tres`; its fit puts the grip in
   the left palm, upright and facing forward in the guard pose (computed from
   `UAL2/Idle_Shield`'s hand pose). Built by GearBuilder (RIGID on `hand_l`)
-  and worn like any gear, so the Outfits & gear panel's "Off hand" picker
-  equips it.
+  and equipped like any gear (the Equipment panel's "Off hand" picker, or
+  picked up).
 - `BlockComponent` (`scripts/components/block_component.gd`, node `Block`
   on the player): finds the worn shield (`appearance`, refreshed on
   `applied`). The owner sets `raised`; `is_guarding()` = raised, a shield
@@ -913,10 +996,8 @@ overhead cut.
   always does at least 1. MOVE_SPEED is read by the controllers: the
   player's `_top_speed()` (run, sprint, walk; weapon speed overrides are
   scaled too) and the enemy's `stats.move_speed`.
-- Gear: `GearDefinition.modifiers`. Until equipment slots exist,
-  CharacterStats' optional `appearance` supplies them: on every apply, the
-  worn gear's modifiers become source `&"gear"`. Helmet +10 armor, wooden
-  shield +5.
+- Gear: `GearDefinition.modifiers`; the player's Equipment sets them as
+  source `&"gear"` on every change (see Equipment).
 - Debug menu: the player's final stats at the top of the panel
   (`DebugMenu.stats_text()`).
 - `tests/stats_test.gd`: modifier maths and pushes; the player's base;
@@ -1379,7 +1460,7 @@ assets/characters/outfits/           Modular Character Outfits - Fantasy: Peasan
 assets/characters/monsters/          Bestiary - Dungeon Monsters Kit: Imp, Puglin (CC0)
 assets/equipment/gear/               Helmet (CC-BY); CREDITS.md
 assets/equipment/shield/             Wooden shield + trim textures (Quaternius Fantasy Props MegaKit, CC0)
-resources/items/gear/                GearDefinitions (helmet, wooden shield)
+resources/items/gear/                Equippable items (outfit pieces, helmet, shield, amulet, rings, charm); resources/items/catalog.tres lists them with the weapons
 resources/characters/                CharacterAppearance .tres files
 (unused)                             knight_rig.tscn, build_knight_rig.gd, knight_post_import.gd, assets/characters/knight/
 assets/equipment/                    Weapon and armour FBX meshes
@@ -1400,7 +1481,8 @@ scripts/world/exit_gate.gd           ExitGate: the portal to the next level
 scripts/world/fog_of_war.gd          FogOfWar: unexplored / explored / visible cells, enemy hiding (+ shaders/fog_of_war.gdshader)
 scripts/run/run_state.gd             RunState autoload (class GameRun): the current run
 scripts/run/player_profile.gd        Profile autoload (class PlayerProfile): gold (later inventory), kept across runs, saved
-scripts/items/                       ItemDefinition, Pickup, DropComponent, LootTable / LootEntry, LootSpawner, Chest
+scripts/items/                       ItemDefinition, GearDefinition, OutfitPieceDefinition, ShieldDefinition, Equipment, Inventory, ItemCatalog, Pickup, DropComponent, LootTable / LootEntry, LootSpawner, Chest
+scripts/ui/inventory_screen.gd       InventoryScreen (I) + item_slot.gd (one cell)
 resources/items/                     ItemDefinitions (gold)
 resources/loot/                      LootTables (enemies, bosses, chests)
 scripts/ui/level_fade.gd             LevelFade: fade + level title over level swaps

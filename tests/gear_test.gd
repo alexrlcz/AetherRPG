@@ -60,23 +60,21 @@ func test_female_and_off() -> void:
 
 
 func test_menu() -> void:
-	print("4. The Outfits & gear panel puts gear on and off")
+	print("4. The Equipment panel puts the helmet on and off")
 	var main: Node3D = preload("res://scenes/main/main.tscn").instantiate()
 	root.add_child(main)
 	await ticks(10)
 	var menu := main.get_node("DebugMenu") as DebugMenu
-	var panel := menu.get_node("OutfitMenu") as OutfitMenu
+	var panel := menu.get_node("EquipmentMenu") as EquipmentMenu
 	var component := main.get_node("Player/Appearance") as AppearanceComponent
-	(menu.get_node("%OutfitsButton") as Button).pressed.emit()
-	var head := panel.get_node("%HeadOption") as OptionButton
-	var back := panel.get_node("%BackOption") as OptionButton
-	var feet := panel.get_node("%FeetOption") as OptionButton
+	(menu.get_node("%EquipmentButton") as Button).pressed.emit()
+	var head := panel.get_option(&"head")
 	check(head.get_item_text(1) == HELMET.display_name, "the head slot offers %s" % head.get_item_text(1))
-	check(back.item_count == 1 and feet.item_count == 1, "back and feet offer only None")
-	panel.choose_gear(GearDefinition.Slot.HEAD, HELMET)
+	check(panel.get_option(&"back").item_count == 1, "the cloak slot offers only None")
+	panel.choose(&"head", HELMET)
 	check(component.appearance.gear_in(GearDefinition.Slot.HEAD) == HELMET and _names(component).has("Gear_HelmetFantasy"),
 		"choosing it dresses the player")
-	panel.choose_gear(GearDefinition.Slot.HEAD, null)
+	panel.choose(&"head", null)
 	check(component.appearance.gear_in(GearDefinition.Slot.HEAD) == null and not _names(component).has("Gear_HelmetFantasy"),
 		"None takes the helmet off")
 	main.queue_free()

@@ -44,7 +44,8 @@ func test_no_shield() -> void:
 	var block := _block(player)
 	check(player.is_aiming and not block.has_shield() and not player.is_guarding, "aiming, no guard")
 	_hit(player, Vector3(0, 0, -2), 10)
-	check(player.health.current_health == 90, "a hit from the front lands (%d hp)" % player.health.current_health)
+	check(player.health.current_health == 100 - _after_armor(player, 10), "a hit from the front lands (%d hp)"
+		% player.health.current_health)
 	Input.action_release("aim")
 	await clear_arena()
 
@@ -103,10 +104,10 @@ func test_blocking() -> void:
 	_hit(player, Vector3(1.5, 0, -1.5), 20)
 	check(player.health.current_health == 100, "a hit from 45 deg to the side, inside the arc, is blocked")
 	_hit(player, Vector3(2.0, 0, 0.0), 5)
-	var side := _after_armor(5)
+	var side := _after_armor(player, 5)
 	check(player.health.current_health == 100 - side, "a hit from straight beside, outside the arc, lands")
 	_hit(player, Vector3(0, 0, 2), 15)
-	check(player.health.current_health == 100 - side - _after_armor(15),
+	check(player.health.current_health == 100 - side - _after_armor(player, 15),
 		"a hit from behind lands, less the shield's armor (%d hp)" % player.health.current_health)
 	Input.action_release("aim")
 	await clear_arena()
@@ -124,7 +125,7 @@ func test_guard_break() -> void:
 	_block(player).guard_broken.connect(func(_e: HitEvent) -> void: broken[0] = true)
 	player.stamina.drain(player.stamina.current_stamina - 10.0)
 	_hit(player, Vector3(0, 0, -2), 20)
-	check(broken[0] and player.health.current_health == 100 - _after_armor(20), "guard broken, the hit lands (%d hp)"
+	check(broken[0] and player.health.current_health == 100 - _after_armor(player, 20), "guard broken, the hit lands (%d hp)"
 		% player.health.current_health)
 	check(player.stamina.is_exhausted and not player.is_guarding, "exhausted: the shield is down")
 	player.stamina.reset()
@@ -176,31 +177,28 @@ func test_enemy_swing() -> void:
 
 
 func test_menu() -> void:
-	print("8. The Outfits & gear panel's Off hand picker")
+	print("8. The Equipment panel's Off hand picker")
 	var main: Node3D = preload("res://scenes/main/main.tscn").instantiate()
 	root.add_child(main)
 	await ticks(10)
 	var menu := main.get_node("DebugMenu") as DebugMenu
-	var panel := menu.get_node("OutfitMenu") as OutfitMenu
+	var panel := menu.get_node("EquipmentMenu") as EquipmentMenu
 	var block := main.get_node("Player/Block") as BlockComponent
-	(menu.get_node("%OutfitsButton") as Button).pressed.emit()
-	var off_hand := panel.get_node("%OffHandOption") as OptionButton
+	(menu.get_node("%EquipmentButton") as Button).pressed.emit()
+	var off_hand := panel.get_option(&"off_hand")
 	check(off_hand.item_count == 2 and off_hand.get_item_text(1) == SHIELD.display_name,
 		"it offers None and %s" % off_hand.get_item_text(1))
-	panel.choose_gear(GearDefinition.Slot.OFF_HAND, SHIELD)
+	panel.choose(&"off_hand", SHIELD)
 	check(block.shield == SHIELD, "choosing it equips the shield")
-	panel.choose_gear(GearDefinition.Slot.OFF_HAND, null)
+	panel.choose(&"off_hand", null)
 	check(block.shield == null, "None takes it off")
 	main.queue_free()
 	await ticks(2)
 
 
-## Damage left of a hit of `amount` after the wooden shield's armor.
-func _after_armor(amount: int) -> int:
-	var armor := 0.0
-	for modifier: StatModifier in SHIELD.modifiers:
-		if modifier.stat == CharacterStats.Stat.ARMOR:
-			armor += modifier.value
+## Damage left of a hit of `amount` after the player's armor (its gear).
+func _after_armor(player: PlayerController, amount: int) -> int:
+	var armor := player.character_stats.get_value(CharacterStats.Stat.ARMOR)
 	return maxi(roundi(amount * (1.0 - CharacterStats.armor_reduction(armor))), 1)
 
 
@@ -221,10 +219,7 @@ func _hit(player: PlayerController, from: Vector3, amount: int) -> void:
 
 
 func _wear(player: PlayerController, item: GearDefinition) -> void:
-	var component := player.get_node("Appearance") as AppearanceComponent
-	var look := component.appearance.duplicate() as CharacterAppearance
-	look.set_gear(item.slot, item)
-	component.apply(look)
+	player.equipment.equip(item)
 
 
 func _block(player: PlayerController) -> BlockComponent:

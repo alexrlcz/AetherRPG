@@ -73,8 +73,11 @@ func test_they_fight() -> void:
 		var animator := monster.get_node("Animator") as CharacterAnimator
 		check(animator.current_action() == &"Sword_Attack", "%s: swings with the library's Sword_Attack" % creature)
 		await wait_until(func() -> bool: return player.health.current_health < hp, 120)
-		check(hp - player.health.current_health == spec[2], "%s: its weapon hits for %d (%d)"
-			% [creature, spec[2], hp - player.health.current_health])
+		# The weapon's damage, less the player's armor (the starting clothes).
+		var reduction := (player.get_node("Hurtbox") as HurtboxComponent).damage_reduction
+		var expected := maxi(roundi(spec[2] * (1.0 - reduction)), 1)
+		check(hp - player.health.current_health == expected, "%s: its weapon hits for %d, %d after armor (%d)"
+			% [creature, spec[2], expected, hp - player.health.current_health])
 		await clear_arena()
 
 

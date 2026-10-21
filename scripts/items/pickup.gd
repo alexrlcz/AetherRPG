@@ -5,10 +5,14 @@ extends Area3D
 ## floor (no physics body: it flies a fixed arc down to the height it was
 ## launched from); then it spins and bobs. An `auto_collect` item (gold)
 ## flies to the player once they are within `magnet_radius` and is collected
-## on contact; gear will wait for the interact key (step 5).
+## on contact. Gear (GearDefinition) waits for the interact key: it is an
+## interactable (Interactor.GROUP) once it has landed. Taking it equips it
+## when a slot it fits is empty (the collector's `equipment`), else puts it
+## in the collector's `inventory`; with the bag full it stays on the floor
+## and the HUD says so.
 ##
-## On the "interactable" physics layer (for the interact key later); it
-## doesn't monitor anything itself. In group GROUP.
+## On the "interactable" physics layer; it doesn't monitor anything itself.
+## In group GROUP.
 
 signal collected(pickup: Pickup, collector: Node3D)
 
@@ -40,6 +44,8 @@ const _COIN_COLOR := Color(1.0, 0.78, 0.25)
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	if item is GearDefinition:
+		add_to_group(Interactor.GROUP)
 	collision_layer = INTERACTABLE_LAYER
 	collision_mask = 0
 	monitoring = false
@@ -107,10 +113,35 @@ func _update_magnet(delta: float) -> void:
 		collect(player)
 
 
-## Hands the item to `collector` (gold goes to the profile) and removes it.
-func collect(collector: Node3D) -> void:
+## Interactable (gear): can be picked up once it has landed.
+func can_interact() -> bool:
+	return item is GearDefinition and not _collected and not _airborne and _age >= collect_delay
+
+
+func interact_prompt() -> String:
+	var gear := item as GearDefinition
+	var stats := gear.describe_modifiers() if gear else ""
+	return "Take %s%s" % [item.display_name, " (%s)" % stats if stats != "" else ""]
+
+
+func interact_animation() -> StringName:
+	return &"PickUp_Table"
+
+
+func interact(by: Node3D) -> void:
+	collect(by)
+
+
+## Hands the item to `collector` and removes it: gold goes to the profile,
+## gear into an empty slot of the collector's `equipment`, else into its
+## `inventory`. Returns false (and the item stays) when gear has nowhere to
+## go: the HUD shows "Bag full".
+func collect(collector: Node3D) -> bool:
 	if _collected:
-		return
+		return false
+	if item is GearDefinition and not _take_gear(collector):
+		get_tree().call_group(HUD.GROUP, &"notify", "Bag full")
+		return false
 	_collected = true
 	if item and item.kind == ItemDefinition.Kind.CURRENCY:
 		var profile := PlayerProfile.current()
@@ -119,6 +150,22 @@ func collect(collector: Node3D) -> void:
 	_play_sound()
 	collected.emit(self, collector)
 	queue_free()
+	return true
+
+
+## Equips the gear into an empty slot it fits, else bags it.
+func _take_gear(collector: Node3D) -> bool:
+	if collector == null:
+		return false
+	var gear := item as GearDefinition
+	var equipment := collector.get(&"equipment") as Equipment
+	if equipment:
+		for slot: StringName in Equipment.slots_for(gear):
+			if equipment.get_item(slot) == null:
+				equipment.equip(gear, slot)
+				return true
+	var inventory := collector.get(&"inventory") as Inventory
+	return inventory != null and inventory.add(gear)
 
 
 func _play_sound() -> void:

@@ -79,11 +79,12 @@ func test_interrupted() -> void:
 	event.direction = Vector3.BACK
 	event.point = player.global_position + Vector3.UP
 	(player.get_node("Hurtbox") as HurtboxComponent).receive_event(event)
+	var after_hit := player.health.current_health  # 60 less the hit (after armor)
 	await ticks(1)
 	check(player.reaction.is_reacting(), "the hit staggers")
 	check(not player.flask.is_drinking() and log.interrupted == 1, "the drink is cut short")
 	await ticks(60)
-	check(player.health.current_health == 50, "no heal (%d)" % player.health.current_health)
+	check(after_hit < 60 and player.health.current_health == after_hit, "no heal (%d)" % player.health.current_health)
 	check(player.flask.charges == 3, "the charge is kept")
 	await clear_arena()
 

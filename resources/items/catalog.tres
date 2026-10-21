@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemCatalog" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/item_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="2_gear"]
+[ext_resource type="Resource" path="res://resources/items/gear/helmet_fantasy.tres" id="10_helmet_fantasy"]
+[ext_resource type="Resource" path="res://resources/items/gear/hood_ranger.tres" id="11_hood_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/amulet_vigor.tres" id="12_amulet_vigor"]
+[ext_resource type="Resource" path="res://resources/items/gear/pauldron_ranger.tres" id="13_pauldron_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/tunic_peasant.tres" id="14_tunic_peasant"]
+[ext_resource type="Resource" path="res://resources/items/gear/jerkin_ranger.tres" id="15_jerkin_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/bracers_ranger.tres" id="16_bracers_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/wraps_peasant.tres" id="17_wraps_peasant"]
+[ext_resource type="Resource" path="res://resources/items/gear/gloves_ranger.tres" id="18_gloves_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/trousers_peasant.tres" id="19_trousers_peasant"]
+[ext_resource type="Resource" path="res://resources/items/gear/leggings_ranger.tres" id="20_leggings_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/shoes_peasant.tres" id="21_shoes_peasant"]
+[ext_resource type="Resource" path="res://resources/items/gear/boots_ranger.tres" id="22_boots_ranger"]
+[ext_resource type="Resource" path="res://resources/items/gear/ring_endurance.tres" id="23_ring_endurance"]
+[ext_resource type="Resource" path="res://resources/items/gear/ring_might.tres" id="24_ring_might"]
+[ext_resource type="Resource" path="res://resources/items/gear/charm_swiftness.tres" id="25_charm_swiftness"]
+[ext_resource type="Resource" path="res://resources/items/gear/shield_wooden.tres" id="26_shield_wooden"]
+[ext_resource type="Resource" path="res://resources/weapons/sword.tres" id="50_sword"]
+[ext_resource type="Resource" path="res://resources/weapons/club.tres" id="51_club"]
+[ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="52_greatsword"]
+
+[resource]
+script = ExtResource("1_catalog")
+items = Array[ExtResource("2_gear")]([ExtResource("10_helmet_fantasy"), ExtResource("11_hood_ranger"), ExtResource("12_amulet_vigor"), ExtResource("13_pauldron_ranger"), ExtResource("14_tunic_peasant"), ExtResource("15_jerkin_ranger"), ExtResource("16_bracers_ranger"), ExtResource("17_wraps_peasant"), ExtResource("18_gloves_ranger"), ExtResource("19_trousers_peasant"), ExtResource("20_leggings_ranger"), ExtResource("21_shoes_peasant"), ExtResource("22_boots_ranger"), ExtResource("23_ring_endurance"), ExtResource("24_ring_might"), ExtResource("25_charm_swiftness"), ExtResource("26_shield_wooden"), ExtResource("50_sword"), ExtResource("51_club"), ExtResource("52_greatsword")])

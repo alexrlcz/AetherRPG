@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://scenes/enemies/enemy_imp.tscn" id="42_imp"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/enemy_puglin.tscn" id="43_puglin"]
 [ext_resource type="Script" path="res://scripts/world/fog_of_war.gd" id="44_fog"]
+[ext_resource type="Script" path="res://scripts/ui/inventory_screen.gd" id="45_inventory"]
 
 [node name="Main" type="Node3D" unique_id=889691045 node_paths=PackedStringArray("player", "enemies", "fade", "hud", "fog")]
 script = ExtResource("6_main")
@@ -48,17 +49,26 @@ enemy_scenes = Array[PackedScene]([ExtResource("5_enemy"), ExtResource("42_imp")
 container = NodePath("../Enemies")
 avoid = NodePath("../Player")
 
-[node name="DebugMenu" parent="." unique_id=1268275517 node_paths=PackedStringArray("spawner", "player_health", "player_stats", "fog", "enemies", "player_appearance", "player_weapon", "main") instance=ExtResource("8_debug")]
+[node name="DebugMenu" parent="." unique_id=1268275517 node_paths=PackedStringArray("spawner", "player_health", "player_stats", "fog", "enemies", "player_appearance", "player_equipment", "hud", "inventory_screen", "main") instance=ExtResource("8_debug")]
 spawner = NodePath("../EnemySpawner")
 player_health = NodePath("../Player/HealthComponent")
 player_stats = NodePath("../Player/Stats")
 fog = NodePath("../FogOfWar")
 enemies = NodePath("../Enemies")
 player_appearance = NodePath("../Player/Appearance")
-player_weapon = NodePath("../Player/Weapon")
+player_equipment = NodePath("../Player/Equipment")
+hud = NodePath("../HUD")
+inventory_screen = NodePath("../InventoryScreen")
 main = NodePath("..")
 
 [node name="FogOfWar" type="Node" parent="." node_paths=PackedStringArray("player", "enemies")]
 script = ExtResource("44_fog")
 player = NodePath("../Player")
 enemies = NodePath("../Enemies")
+
+[node name="InventoryScreen" type="CanvasLayer" parent="." node_paths=PackedStringArray("player", "inventory", "equipment", "stats")]
+script = ExtResource("45_inventory")
+player = NodePath("../Player")
+inventory = NodePath("../Player/Inventory")
+equipment = NodePath("../Player/Equipment")
+stats = NodePath("../Player/Stats")

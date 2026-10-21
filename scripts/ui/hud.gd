@@ -1,6 +1,10 @@
 class_name HUD
 extends CanvasLayer
 ## Player-facing interface. Only listens to gameplay signals; never drives gameplay.
+## notify(text) shows a short message (e.g. "Bag full"); in group GROUP so
+## gameplay code can call_group() it without knowing the HUD.
+
+const GROUP := &"hud"
 
 @export var player_health: HealthComponent
 @export var player_stamina: StaminaComponent
@@ -22,9 +26,25 @@ extends CanvasLayer
 
 ## The boss whose bar is shown (or waiting to be shown).
 var _boss: EnemyController
+var _notice: Label
+var _notice_tween: Tween
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
+	_notice = Label.new()
+	_notice.name = "Notice"
+	_notice.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_notice.offset_top = -190.0
+	_notice.offset_bottom = -160.0
+	_notice.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_notice.add_theme_font_size_override(&"font_size", 24)
+	_notice.add_theme_color_override(&"font_color", Color(1.0, 0.55, 0.45))
+	_notice.add_theme_constant_override(&"outline_size", 6)
+	_notice.add_theme_color_override(&"font_outline_color", Color(0, 0, 0, 0.9))
+	_notice.hide()
+	add_child(_notice)
 	_defeated_label.hide()
 	_restart_hint.hide()
 	_boss_panel.hide()
@@ -169,3 +189,30 @@ func _on_boss_died(boss: EnemyController, title: String) -> void:
 func _on_player_died() -> void:
 	_defeated_label.show()
 	_restart_hint.show()
+
+
+
+## Scales the health / stamina / flask panel (debug menu slider), growing
+## from its bottom-left corner.
+func set_player_panel_scale(value: float) -> void:
+	var panel := %HealthBar.get_parent() as Control
+	panel.pivot_offset = Vector2(0.0, panel.size.y)
+	panel.scale = Vector2.ONE * value
+
+
+## Shows `text` for `seconds`, then fades it out.
+func notify(text: String, seconds: float = 1.6) -> void:
+	_notice.text = text
+	_notice.show()
+	_notice.modulate.a = 1.0
+	if _notice_tween:
+		_notice_tween.kill()
+	_notice_tween = create_tween()
+	_notice_tween.tween_interval(seconds)
+	_notice_tween.tween_property(_notice, "modulate:a", 0.0, 0.4)
+	_notice_tween.tween_callback(_notice.hide)
+
+
+## The message shown now ("" when none; tests).
+func get_notice() -> String:
+	return _notice.text if _notice.visible else ""

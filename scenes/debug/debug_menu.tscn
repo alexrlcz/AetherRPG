@@ -1,10 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/debug/debug_menu.gd" id="1_debug"]
-[ext_resource type="Script" path="res://scripts/combat/weapon_definition.gd" id="2_definition"]
-[ext_resource type="Resource" path="res://resources/weapons/sword.tres" id="3_sword"]
-[ext_resource type="Resource" path="res://resources/weapons/greatsword.tres" id="4_greatsword"]
-[ext_resource type="PackedScene" path="res://scenes/debug/outfit_menu.tscn" id="5_outfits"]
+[ext_resource type="PackedScene" path="res://scenes/debug/equipment_menu.tscn" id="5_equipment"]
 
 [sub_resource type="StyleBoxFlat" id="Style_panel"]
 bg_color = Color(0.08, 0.08, 0.1, 0.85)
@@ -25,7 +22,6 @@ content_margin_bottom = 10.0
 [node name="DebugMenu" type="CanvasLayer"]
 layer = 10
 script = ExtResource("1_debug")
-player_weapons = Array[ExtResource("2_definition")]([ExtResource("3_sword"), ExtResource("4_greatsword")])
 
 [node name="Panel" type="PanelContainer" parent="."]
 unique_name_in_owner = true
@@ -79,9 +75,9 @@ text = "Fog of war"
 unique_name_in_owner = true
 text = "Kill all enemies"
 
-[node name="OutfitsButton" type="Button" parent="Panel/Scroll/VBox"]
+[node name="EquipmentButton" type="Button" parent="Panel/Scroll/VBox"]
 unique_name_in_owner = true
-text = "Outfits..."
+text = "Equipment..."
 
 [node name="LevelRow" type="HBoxContainer" parent="Panel/Scroll/VBox"]
 theme_override_constants/separation = 6
@@ -123,16 +119,6 @@ size_flags_horizontal = 3
 [node name="PlayMapButton" type="Button" parent="Panel/Scroll/VBox/MapRow"]
 unique_name_in_owner = true
 text = "Play map"
-
-[node name="WeaponRow" type="HBoxContainer" parent="Panel/Scroll/VBox"]
-theme_override_constants/separation = 8
-
-[node name="WeaponLabel" type="Label" parent="Panel/Scroll/VBox/WeaponRow"]
-text = "Player weapon"
-
-[node name="WeaponOption" type="OptionButton" parent="Panel/Scroll/VBox/WeaponRow"]
-unique_name_in_owner = true
-size_flags_horizontal = 3
 
 [node name="Separator" type="HSeparator" parent="Panel/Scroll/VBox"]
 
@@ -200,4 +186,4 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 text = "Randomize appearance"
 
-[node name="OutfitMenu" parent="." instance=ExtResource("5_outfits")]
+[node name="EquipmentMenu" parent="." instance=ExtResource("5_equipment")]

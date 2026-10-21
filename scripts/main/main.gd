@@ -55,6 +55,17 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart") and can_restart():
 		restart()
+	elif event.is_action_pressed("toggle_fullscreen"):
+		toggle_fullscreen()
+
+
+## F11: the start-up maximized window (project settings) <-> fullscreen.
+func toggle_fullscreen() -> void:
+	var window := get_window()
+	if window.mode == Window.MODE_FULLSCREEN or window.mode == Window.MODE_EXCLUSIVE_FULLSCREEN:
+		window.mode = Window.MODE_MAXIMIZED
+	else:
+		window.mode = Window.MODE_FULLSCREEN
 
 
 func can_restart() -> bool:

@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/items/loot_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://scripts/items/loot_entry.gd" id="2_entry"]
 [ext_resource type="Resource" path="res://resources/items/gold.tres" id="3_gold"]
+[ext_resource type="Resource" path="res://resources/items/catalog.tres" id="90_catalog"]
 
 [sub_resource type="Resource" id="Guaranteed1"]
 script = ExtResource("2_entry")
@@ -13,3 +14,5 @@ per_level = 0.15
 [resource]
 script = ExtResource("1_table")
 guaranteed = Array[ExtResource("2_entry")]([SubResource("Guaranteed1")])
+gear = ExtResource("90_catalog")
+gear_chance = 0.06

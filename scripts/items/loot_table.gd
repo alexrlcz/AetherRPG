@@ -3,12 +3,18 @@ extends Resource
 ## What something drops (an enemy, a chest): one .tres per table in
 ## resources/loot/. Every `guaranteed` entry is rolled on its own `chance`;
 ## then `rolls` picks are made from `weighted` by weight, where
-## `nothing_weight` is the share of a pick that gives nothing.
+## `nothing_weight` is the share of a pick that gives nothing. Finally, with
+## `gear_chance`, one random item from `gear` (an ItemCatalog) drops too.
 
 @export var guaranteed: Array[LootEntry] = []
 @export var weighted: Array[LootEntry] = []
 @export var rolls: int = 0
 @export var nothing_weight: float = 0.0
+@export_group("Gear")
+## Equippable items one can drop from.
+@export var gear: ItemCatalog
+## Chance (0..1) that one item from `gear` drops as well.
+@export_range(0.0, 1.0) var gear_chance: float = 0.0
 
 
 ## The drop for `level`: [[item: ItemDefinition, amount: int], ...], one line
@@ -30,6 +36,10 @@ func roll(rng: RandomNumberGenerator, level: int = 1) -> Array:
 				if entry.item:
 					_add(totals, order, entry.item, entry.roll_amount(rng, level))
 				break
+	if gear and gear_chance > 0.0 and rng.randf() < gear_chance:
+		var item := gear.pick(rng)
+		if item:
+			_add(totals, order, item, 1)
 	var result := []
 	for item in order:
 		if totals[item] > 0:

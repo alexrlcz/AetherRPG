@@ -76,7 +76,8 @@ func test_player_base() -> void:
 	check(stats != null and stats.base.resource_path.ends_with("player_stats.tres"), "base from player_stats.tres")
 	check(player.health.max_health == 100 and is_equal_approx(player.stamina.max_stamina, 100.0)
 		and is_equal_approx(player.stamina.regen_rate, 30.0), "health 100, stamina 100, regen 30/s")
-	check(stats.get_value(Stat.ARMOR) == 0.0 and player.melee.damage_scale == 1.0, "no armor, damage x1")
+	check(stats.get_base_value(Stat.ARMOR) == 0.0 and player.melee.damage_scale == 1.0,
+		"no base armor (the starting clothes add theirs), damage x1")
 	await clear_arena()
 
 
@@ -93,7 +94,7 @@ func test_gear_armor() -> void:
 	check(player.health.current_health == 100 - expected, "a 20 hit does %d (%d hp)"
 		% [expected, player.health.current_health])
 	_wear(player, [])
-	check(stats.get_value(Stat.ARMOR) == 0.0 and stats.get_modifiers(CharacterStats.GEAR_SOURCE).is_empty(),
+	check(stats.get_value(Stat.ARMOR) == 0.0 and stats.get_modifiers(Equipment.STATS_SOURCE).is_empty(),
 		"taking the gear off removes its armor")
 	_hit(player, Vector3(0, 0, 2), 1)
 	check(player.health.current_health == 100 - expected - 1, "a hit always does at least 1")
@@ -163,11 +164,9 @@ func _hit(target: CharacterBody3D, from: Vector3, amount: int) -> void:
 	attacker.queue_free()
 
 
+## Takes everything off (the main hand too), then equips `items`.
 func _wear(player: PlayerController, items: Array) -> void:
-	var component := player.get_node("Appearance") as AppearanceComponent
-	var look := component.appearance.duplicate() as CharacterAppearance
-	var none: Array[GearDefinition] = []
-	look.gear = none
+	for slot: StringName in Equipment.SLOTS:
+		player.equipment.unequip(slot)
 	for item: GearDefinition in items:
-		look.set_gear(item.slot, item)
-	component.apply(look)
+		player.equipment.equip(item)

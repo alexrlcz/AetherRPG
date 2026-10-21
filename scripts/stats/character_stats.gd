@@ -12,14 +12,12 @@ extends Node
 ##   ARMOR         -> hurtbox.damage_reduction = armor / (armor + 100)
 ##   MOVE_SPEED    -> multiplier (base 1) on the controller's speeds
 ##
-## Until equipment slots exist, the gear worn by `appearance` supplies the
-## &"gear" modifiers (GearDefinition.modifiers), refreshed on every apply.
+## The player's Equipment sets the &"gear" modifiers (every equipped item's
+## GearDefinition.modifiers).
 
 signal stats_changed
 
 enum Stat { MAX_HEALTH, MAX_STAMINA, STAMINA_REGEN, DAMAGE, ARMOR, MOVE_SPEED }
-
-const GEAR_SOURCE := &"gear"
 
 ## Base values. The enemy controller sets its EnemyStats here; null = the
 ## StatBlock defaults.
@@ -28,8 +26,6 @@ const GEAR_SOURCE := &"gear"
 @export var stamina: StaminaComponent
 @export var melee: MeleeAttackComponent
 @export var hurtbox: HurtboxComponent
-## Optional: its worn gear's modifiers apply (see above).
-@export var appearance: AppearanceComponent
 
 ## Source -> Array[StatModifier].
 var _modifiers: Dictionary = {}
@@ -40,9 +36,6 @@ var _values: Dictionary = {}
 func _ready() -> void:
 	if base == null:
 		base = StatBlock.new()
-	if appearance:
-		appearance.applied.connect(_refresh_gear)
-		_refresh_gear()
 	recalculate()
 
 
@@ -128,11 +121,3 @@ func _push() -> void:
 	if hurtbox:
 		hurtbox.damage_reduction = armor_reduction(_values[Stat.ARMOR])
 
-
-func _refresh_gear() -> void:
-	var modifiers: Array = []
-	if appearance.appearance:
-		for item in appearance.appearance.gear:
-			if item:
-				modifiers.append_array(item.modifiers)
-	set_modifiers(GEAR_SOURCE, modifiers)

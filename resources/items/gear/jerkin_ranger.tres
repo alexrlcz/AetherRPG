@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="OutfitPieceDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/outfit_piece_definition.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/stats/stat_modifier.gd" id="9_mod"]
+
+[sub_resource type="Resource" id="Mod0"]
+script = ExtResource("9_mod")
+stat = 4
+kind = 0
+value = 10.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"jerkin_ranger"
+display_name = "Ranger Jerkin"
+kind = 1
+auto_collect = false
+slot = 6
+outfit = "Ranger"
+male_meshes = PackedStringArray("Male_Ranger_Body", "Male_Ranger_Body_Belt_1", "Male_Ranger_Body_Belt_2")
+female_meshes = PackedStringArray("Female_Ranger_Body", "Female_Ranger_Body_Belt_1", "Female_Ranger_Body_Belt_2")
+hides_body_bones = PackedStringArray("spine_01", "spine_02", "spine_03", "clavicle_l", "clavicle_r")
+modifiers = Array[ExtResource("9_mod")]([SubResource("Mod0")])

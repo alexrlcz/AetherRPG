@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="GearDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/items/gear_definition.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/stats/stat_modifier.gd" id="9_mod"]
+
+[sub_resource type="Resource" id="Mod0"]
+script = ExtResource("9_mod")
+stat = 0
+kind = 0
+value = 20.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"amulet_vigor"
+display_name = "Amulet of Vigor"
+kind = 1
+auto_collect = false
+slot = 4
+modifiers = Array[ExtResource("9_mod")]([SubResource("Mod0")])

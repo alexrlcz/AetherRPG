@@ -270,20 +270,26 @@ func test_greatsword_knight() -> void:
 
 
 func test_debug_menu() -> void:
-	print("9. The debug menu's weapon option swaps the player's weapon")
+	print("9. The Equipment panel's main-hand picker swaps the player's weapon")
 	var main: Node3D = preload("res://scenes/main/main.tscn").instantiate()
 	root.add_child(main)
 	await ticks(10)
 	var menu := main.get_node("DebugMenu") as DebugMenu
-	var option := menu.get_node("%WeaponOption") as OptionButton
+	var panel := menu.get_node("EquipmentMenu") as EquipmentMenu
+	var option := panel.get_option(&"main_hand")
 	var weapon := _weapon(main.get_node("Player"))
-	check(option.item_count == 2 and option.get_item_text(option.selected) == "Sword",
-		"offers %d weapons, Sword selected" % option.item_count)
-	option.select(1)
-	option.item_selected.emit(1)
+	panel.open()
+	check(option.item_count == 4 and option.get_item_text(option.selected) == "Sword",
+		"offers None and %d weapons, Sword selected" % (option.item_count - 1))
+	var index := -1
+	for i in option.item_count:
+		if option.get_item_metadata(i) == GREATSWORD:
+			index = i
+	option.select(index)
+	option.item_selected.emit(index)
 	await ticks(5)
 	check(weapon.current == GREATSWORD, "picking Greatsword equips it")
-	menu.equip_player_weapon(0)
+	panel.choose(&"main_hand", SWORD)
 	await ticks(5)
 	check(weapon.current == SWORD, "and back to the sword")
 	main.queue_free()

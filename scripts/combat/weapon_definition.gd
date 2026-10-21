@@ -1,18 +1,17 @@
 class_name WeaponDefinition
-extends Resource
+extends GearDefinition
 ## One weapon: its model, hitbox and trail, the attacks of whoever wields it
 ## and the animation set to use meanwhile. WeaponComponent equips it; one
-## .tres per weapon in resources/weapons/.
+## .tres per weapon in resources/weapons/. It is also a main-hand item
+## (Equipment): `display_name` and `model` come from the item, and the
+## model goes in the hand, never on the body (is_worn_visual()).
 ##
 ## Placement values are in the space of the hand's bone attachment
 ## (`RightHand`, bone hand_r). Player and enemy attacks are separate so one
 ## weapon can serve both.
 
-@export var display_name: String = "Weapon"
-
 @export_group("Model")
-## Instanced under the hand attachment.
-@export var model: PackedScene
+## `model` is instanced under the hand attachment with this transform.
 @export var model_transform: Transform3D = Transform3D.IDENTITY
 
 @export_group("Hitbox")
@@ -51,3 +50,12 @@ extends Resource
 ## Properties of the character itself while wielded (e.g. the player's
 ## move_speed for a heavy weapon). Missing properties are ignored.
 @export var character_overrides: Dictionary = {}
+
+
+func _init() -> void:
+	super()
+	slot = GearDefinition.Slot.MAIN_HAND
+
+
+func is_worn_visual() -> bool:
+	return false

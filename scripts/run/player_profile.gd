@@ -1,20 +1,24 @@
 class_name PlayerProfile
 extends Node
 ## What the player keeps across runs and play sessions (autoload "Profile"):
-## gold now, the inventory later. Saved to `save_path` as JSON on every
-## change and loaded on start. Unlike RunState, nothing here resets on
-## death or a new run.
+## gold, the equipped gear and the bag. Saved to `save_path` as
+## JSON on every change and loaded on start. Unlike RunState, nothing here
+## resets on death or a new run.
 ##
 ## Reach it with PlayerProfile.current() (see GameRun.current() for why).
 
 signal gold_changed(total: int, delta: int)
 
-const VERSION := 1
+const VERSION := 2
 
 ## Where the profile is saved; "" = don't save or load (set automatically
 ## under test suites and tools).
 var save_path: String = "user://profile.json"
 var gold: int = 0
+## Equipment slot -> the item's resource path (Equipment reads and writes it).
+var equipment: Dictionary = {}
+## The bag's cells: the item's resource path, "" for empty (Inventory).
+var inventory: Array = []
 
 
 ## The autoload instance (null outside a running tree).
@@ -40,6 +44,24 @@ func add_gold(amount: int) -> void:
 		save_profile()
 
 
+## True when the profile is kept on disk (not under test suites and tools,
+## whose players must not inherit each other's gear).
+func persists() -> bool:
+	return save_path != ""
+
+
+## Stores what is equipped (slot -> resource path) and saves.
+func set_equipment(slots: Dictionary) -> void:
+	equipment = slots.duplicate()
+	save_profile()
+
+
+## Stores the bag's cells and saves.
+func set_inventory(cells: Array) -> void:
+	inventory = cells.duplicate()
+	save_profile()
+
+
 func save_profile() -> void:
 	if save_path == "":
 		return
@@ -47,7 +69,8 @@ func save_profile() -> void:
 	if file == null:
 		push_error("PlayerProfile: cannot write %s (%s)" % [save_path, FileAccess.get_open_error()])
 		return
-	file.store_string(JSON.stringify({"version": VERSION, "gold": gold}))
+	file.store_string(JSON.stringify({"version": VERSION, "gold": gold, "equipment": equipment,
+		"inventory": inventory}))
 
 
 ## Reads `save_path`; a missing file is a fresh profile.
@@ -59,4 +82,8 @@ func load_profile() -> void:
 		push_error("PlayerProfile: %s is not a profile; starting fresh" % save_path)
 		return
 	gold = maxi(int(data.get("gold", 0)), 0)
+	var saved: Variant = data.get("equipment", {})
+	equipment = saved if saved is Dictionary else {}
+	var bag: Variant = data.get("inventory", [])
+	inventory = bag if bag is Array else []
 	gold_changed.emit(gold, 0)

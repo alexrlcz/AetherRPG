@@ -106,8 +106,11 @@ func test_invulnerability() -> void:
 	await wait_until(func() -> bool:
 		return player.dodge.is_dodging() and not player.get_node("Hurtbox").invulnerable, 60)
 	check(player.dodge.is_dodging(), "late in the roll the character is vulnerable again")
-	player.get_node("Hurtbox").receive_hit(10, null)
-	check(player.health.current_health == hp - 10, "a hit after the i-frames lands")
+	var hurtbox := player.get_node("Hurtbox") as HurtboxComponent
+	hurtbox.receive_hit(10, null)
+	# The starting clothes' armor takes a little off.
+	var expected := maxi(roundi(10 * (1.0 - hurtbox.damage_reduction)), 1)
+	check(player.health.current_health == hp - expected, "a hit after the i-frames lands (%d)" % expected)
 	await wait_until(func() -> bool: return not player.dodge.is_dodging(), 60)
 	check(not player.get_node("Hurtbox").invulnerable, "invulnerability cleared after the roll")
 	await clear_arena()

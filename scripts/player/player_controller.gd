@@ -136,6 +136,10 @@ enum AttackInput { NONE, LIGHT, HEAVY }
 @export var block: BlockComponent
 ## Its MOVE_SPEED multiplies every top speed (optional).
 @export var character_stats: CharacterStats
+## What the player wears and wields; gear pickups equip into it (optional).
+@export var equipment: Equipment
+## The bag gear pickups go into when their slot is taken (optional).
+@export var inventory: Inventory
 
 var is_aiming: bool = false
 ## Facing is decoupled from movement (aiming or locked on, not sprinting); the
@@ -155,6 +159,8 @@ var sprint_toggled: bool = false
 ## Walk toggle on: top speed `walk_speed`; the animator plays the formal walk.
 var is_walking: bool = false
 var is_dead: bool = false
+## A screen owns the mouse (inventory): right mouse doesn't aim / block.
+var mouse_blocked: bool = false
 ## When not ZERO, used instead of the mouse cursor position while aiming
 ## (scripted sequences, tests, a future gamepad stick).
 var aim_override: Vector3 = Vector3.ZERO
@@ -553,7 +559,7 @@ func _on_died() -> void:
 
 
 func _update_aim_state() -> void:
-	var aiming_now := Input.is_action_pressed("aim")
+	var aiming_now := Input.is_action_pressed("aim") and not mouse_blocked
 	if aiming_now != is_aiming:
 		is_aiming = aiming_now
 		if is_aiming:

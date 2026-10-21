@@ -5,8 +5,8 @@ extends CanvasLayer
 ## "God mode" makes the player take no damage (HealthComponent.god_mode).
 ## The player's final core stats (CharacterStats) are listed at the top.
 ## "Fog of war" turns the level's FogOfWar on and off.
-## The panel also edits the player's appearance and weapon live (not saved),
-## opens the Outfits panel (OutfitMenu) to dress the player,
+## The panel also edits the player's appearance live (not saved), opens the
+## Equipment panel (EquipmentMenu) to equip any item in any slot,
 ## generates levels from a seed (Main.generate_level()) and plays the
 ## hand-made maps in LevelPool.MAPS_DIR (Main.play_map()).
 
@@ -20,10 +20,11 @@ extends CanvasLayer
 @export var enemies: Node
 ## Edited by the appearance controls; works on a copy of its resource.
 @export var player_appearance: AppearanceComponent
-## The player's weapon, swapped by the weapon option.
-@export var player_weapon: WeaponComponent
-## Weapons offered in the weapon option.
-@export var player_weapons: Array[WeaponDefinition] = []
+## Edited by the Equipment panel.
+@export var player_equipment: Equipment
+## Scaled by the UI size sliders (optional).
+@export var hud: HUD
+@export var inventory_screen: InventoryScreen
 ## Has generate_level(seed) (the Main scene).
 @export var main: Node
 
@@ -31,7 +32,7 @@ extends CanvasLayer
 @onready var _scroll: ScrollContainer = $Panel/Scroll
 @onready var _count_label: Label = %EnemyCount
 @onready var _stats_label: Label = %PlayerStats
-@onready var _outfit_menu: OutfitMenu = $OutfitMenu
+@onready var _equipment_menu: EquipmentMenu = $EquipmentMenu
 
 
 func _ready() -> void:
@@ -48,10 +49,10 @@ func _ready() -> void:
 	%FogCheck.set_pressed_no_signal(fog != null and fog.enabled)
 	%FogCheck.toggled.connect(set_fog)
 	_setup_appearance_controls()
-	_outfit_menu.appearance_component = player_appearance
-	%OutfitsButton.pressed.connect(_toggle_outfits)
-	_setup_weapon_control()
+	_equipment_menu.equipment = player_equipment
+	%EquipmentButton.pressed.connect(_toggle_equipment)
 	_setup_level_controls()
+	_setup_ui_scale_controls()
 	_setup_map_controls()
 	# Taller than the window (small windows): scroll instead of running off it.
 	get_viewport().size_changed.connect(fit_to_screen)
@@ -66,7 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_panel.visible = not _panel.visible
 		fit_to_screen()
 		if not _panel.visible:
-			_outfit_menu.close()
+			_equipment_menu.close()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("debug_spawn_enemy"):
 		spawn_enemy()
@@ -84,9 +85,7 @@ static func stats_text(stats: CharacterStats) -> String:
 	if stats == null:
 		return "Player stats: -"
 	var armor := stats.get_value(CharacterStats.Stat.ARMOR)
-	return "HP %d   Stamina %d (+%d/s)
-Damage x%.2f   Speed x%.2f
-Armor %d (-%d%% damage)" % [
+	return "HP %d   Stamina %d (+%d/s)\nDamage x%.2f   Speed x%.2f\nArmor %d (-%d%% damage)" % [
 		roundi(stats.get_value(CharacterStats.Stat.MAX_HEALTH)),
 		roundi(stats.get_value(CharacterStats.Stat.MAX_STAMINA)),
 		roundi(stats.get_value(CharacterStats.Stat.STAMINA_REGEN)),
@@ -104,14 +103,61 @@ func fit_to_screen() -> void:
 	_panel.reset_size()
 
 
-## Opens / closes the Outfits panel, just left of this panel (which grows
+## UI size sliders (under the fog checkbox): the HUD's health / stamina
+## panel, this menu (and its Equipment panel), the inventory window.
+func _setup_ui_scale_controls() -> void:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	var vbox := %FogCheck.get_parent() as Control
+	vbox.add_child(grid)
+	vbox.move_child(grid, %FogCheck.get_index() + 1)
+	for row: Array in [["Health/stamina size", func(v: float) -> void: if hud: hud.set_player_panel_scale(v)],
+			["Debug menu size", _set_menu_scale],
+			["Inventory size", func(v: float) -> void: if inventory_screen: inventory_screen.set_ui_scale(v)]]:
+		var label := Label.new()
+		label.text = row[0]
+		grid.add_child(label)
+		var slider := HSlider.new()
+		slider.min_value = 0.5
+		slider.max_value = 2.0
+		slider.step = 0.05
+		slider.value = 1.0
+		slider.custom_minimum_size = Vector2(110, 0)
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.focus_mode = Control.FOCUS_NONE
+		if row[1] == _set_menu_scale:
+			# This menu moves under the cursor while it scales: apply only
+			# when the drag ends (clicks on the track still apply at once).
+			slider.drag_ended.connect(func(_changed: bool) -> void: _set_menu_scale(slider.value))
+			slider.value_changed.connect(func(v: float) -> void:
+				if not slider.has_meta(&"dragging"):
+					_set_menu_scale(v))
+			slider.drag_started.connect(func() -> void: slider.set_meta(&"dragging", true))
+			slider.drag_ended.connect(func(_changed: bool) -> void: slider.remove_meta(&"dragging"))
+		else:
+			slider.value_changed.connect(row[1])
+		grid.add_child(slider)
+
+
+## Scales this panel from its top-right corner, and the Equipment panel.
+func _set_menu_scale(value: float) -> void:
+	_panel.pivot_offset = Vector2(_panel.size.x, 0.0)
+	_panel.scale = Vector2.ONE * value
+	_equipment_menu.scale = Vector2.ONE * value
+	if _equipment_menu.visible:
+		_toggle_equipment()
+		_toggle_equipment()
+
+
+## Opens / closes the Equipment panel, just left of this panel (which grows
 ## with its contents).
-func _toggle_outfits() -> void:
-	_outfit_menu.toggle()
-	if _outfit_menu.visible:
-		_outfit_menu.reset_size()
-		_outfit_menu.global_position = Vector2(
-			_panel.global_position.x - _outfit_menu.size.x - 12.0, _panel.global_position.y)
+func _toggle_equipment() -> void:
+	_equipment_menu.toggle()
+	if _equipment_menu.visible:
+		_equipment_menu.reset_size()
+		_equipment_menu.global_position = Vector2(
+			_panel.global_position.x - _equipment_menu.size.x * _equipment_menu.scale.x - 12.0,
+			_panel.global_position.y)
 
 
 func spawn_enemy() -> Node3D:
@@ -195,22 +241,6 @@ func _setup_map_controls() -> void:
 			play_map(option.get_item_metadata(option.selected)))
 
 
-## Equips `player_weapons[index]` on the player.
-func equip_player_weapon(index: int) -> void:
-	if player_weapon and index >= 0 and index < player_weapons.size():
-		player_weapon.equip(player_weapons[index])
-
-
-func _setup_weapon_control() -> void:
-	var option: OptionButton = %WeaponOption
-	option.clear()
-	for w in player_weapons:
-		option.add_item(w.display_name)
-	if player_weapon:
-		option.select(maxi(player_weapons.find(player_weapon.current), 0))
-	option.item_selected.connect(equip_player_weapon)
-
-
 # --- Appearance -------------------------------------------------------------
 
 func _setup_appearance_controls() -> void:
@@ -248,8 +278,6 @@ func randomize_appearance() -> void:
 func _edit(change: Callable) -> void:
 	change.call(player_appearance.appearance)
 	player_appearance.apply(player_appearance.appearance)
-	if _outfit_menu.visible:
-		_outfit_menu.sync()  # A body change swaps the outfit's cut.
 
 
 func _sync_controls() -> void:

@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/debug/equipment_menu.gd" id="1_menu"]
+[ext_resource type="Resource" path="res://resources/items/catalog.tres" id="2_catalog"]
+
+[sub_resource type="StyleBoxFlat" id="Style_panel"]
+bg_color = Color(0.08, 0.08, 0.1, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.9, 0.75, 0.3, 0.6)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+
+[node name="EquipmentMenu" type="PanelContainer"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -556.0
+offset_top = 16.0
+offset_right = -288.0
+offset_bottom = 200.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("Style_panel")
+script = ExtResource("1_menu")
+catalog = ExtResource("2_catalog")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="VBox"]
+theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
+text = "Equipment"
+
+[node name="Grid" type="GridContainer" parent="VBox"]
+unique_name_in_owner = true
+theme_override_constants/h_separation = 8
+columns = 2
+
+[node name="CloseButton" type="Button" parent="VBox"]
+unique_name_in_owner = true
+text = "Close"
